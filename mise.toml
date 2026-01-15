@@ -1,0 +1,102 @@
+[tools]
+erlang = "28.3.1"
+elixir = "1.19.5-otp-28"
+
+[env]
+MIX_ENV = "dev"
+
+[tasks.setup]
+description = "Install dependencies and set up the project"
+run = """
+mix local.hex --force
+mix local.rebar --force
+mix deps.get
+mix ecto.setup
+"""
+
+[tasks.server]
+description = "Start the Phoenix server"
+run = "mix phx.server"
+
+[tasks.dev]
+description = "Start Phoenix server in interactive mode"
+run = "iex -S mix phx.server"
+
+[tasks.test]
+description = "Run all tests"
+env = { MIX_ENV = "test" }
+run = "mix test"
+
+[tasks."test:watch"]
+description = "Run tests in watch mode"
+env = { MIX_ENV = "test" }
+run = "mix test.watch"
+
+[tasks."test:coverage"]
+description = "Run tests with coverage report"
+env = { MIX_ENV = "test" }
+run = "mix test --cover"
+
+[tasks.format]
+description = "Format all Elixir files"
+run = "mix format"
+
+[tasks."format:check"]
+description = "Check formatting without changes"
+run = "mix format --check-formatted"
+
+[tasks.lint]
+description = "Run Credo static analysis"
+run = "mix credo --strict"
+
+[tasks.dialyzer]
+description = "Run Dialyzer type checker"
+run = "mix dialyzer"
+
+[tasks.check]
+description = "Run all checks (format, credo, test)"
+run = """
+mix format --check-formatted
+mix credo --strict
+MIX_ENV=test mix test
+"""
+
+[tasks."db:setup"]
+description = "Create and migrate database"
+run = "mix ecto.setup"
+
+[tasks."db:reset"]
+description = "Drop, create, and migrate database"
+run = "mix ecto.reset"
+
+[tasks."db:migrate"]
+description = "Run database migrations"
+run = "mix ecto.migrate"
+
+[tasks."db:rollback"]
+description = "Rollback last database migration"
+run = "mix ecto.rollback"
+
+[tasks.routes]
+description = "List all routes"
+run = "mix phx.routes"
+
+[tasks.clean]
+description = "Clean build artifacts"
+run = """
+rm -rf _build
+rm -rf deps
+rm -rf .elixir_ls
+"""
+
+[tasks.release]
+description = "Build a release"
+run = "MIX_ENV=prod mix release"
+
+[tasks."docker:build"]
+description = "Build Docker image"
+run = "docker build -t sentinel-cp ."
+
+[tasks."docker:run"]
+description = "Run Docker container"
+run = "docker run -p 4000:4000 sentinel-cp"
