@@ -14,24 +14,52 @@ defmodule SentinelCpWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :node_auth do
+    plug SentinelCpWeb.Plugs.NodeAuth
+  end
+
+  # Browser routes
   scope "/", SentinelCpWeb do
     pipe_through :browser
 
     get "/", PageController, :home
+
+    live "/projects", ProjectsLive.Index, :index
+    live "/projects/:project_slug/nodes", NodesLive.Index, :index
+    live "/projects/:project_slug/nodes/:id", NodesLive.Show, :show
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", SentinelCpWeb do
-  #   pipe_through :api
-  # end
+  # Node-facing API (called by Sentinel nodes)
+  scope "/api/v1", SentinelCpWeb.Api do
+    pipe_through :api
+
+    # Node registration (no auth required - returns node key)
+    post "/projects/:project_slug/nodes/register", NodeController, :register
+  end
+
+  # Node-authenticated endpoints
+  scope "/api/v1/nodes", SentinelCpWeb.Api do
+    pipe_through [:api, :node_auth]
+
+    post "/:node_id/heartbeat", NodeController, :heartbeat
+    get "/:node_id/bundles/latest", NodeController, :latest_bundle
+  end
+
+  # Control plane API (called by operators/API keys)
+  scope "/api/v1", SentinelCpWeb.Api do
+    pipe_through :api
+
+    # Project nodes management
+    scope "/projects/:project_slug" do
+      get "/nodes", ProjectNodesController, :index
+      get "/nodes/stats", ProjectNodesController, :stats
+      get "/nodes/:id", ProjectNodesController, :show
+      delete "/nodes/:id", ProjectNodesController, :delete
+    end
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:sentinel_cp, :dev_routes) do
-    # If you want to use the LiveDashboard in production, you should put
-    # it behind authentication and allow only admins to access it.
-    # If your application does not have an admins-only section yet,
-    # you can use Plug.BasicAuth to set up some basic authentication
-    # as long as you are also using SSL (which you should anyway).
     import Phoenix.LiveDashboard.Router
 
     scope "/dev" do
