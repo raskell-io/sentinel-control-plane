@@ -35,4 +35,36 @@ defmodule SentinelCpWeb.ConnCase do
     SentinelCp.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
+
+  @doc """
+  Logs in a user via session for browser tests.
+  Returns the conn with the user session set.
+  """
+  def log_in_user(%Plug.Conn{} = conn, user) do
+    token = SentinelCp.Accounts.generate_user_session_token(user)
+
+    conn
+    |> Phoenix.ConnTest.init_test_session(%{})
+    |> Plug.Conn.put_session(:user_token, token)
+  end
+
+  @doc """
+  Sets up an API key and adds the Authorization header.
+  Returns {conn, api_key}.
+  """
+  def authenticate_api(%Plug.Conn{} = conn, opts \\ []) do
+    user = opts[:user] || SentinelCp.AccountsFixtures.user_fixture()
+    project = opts[:project] || SentinelCp.ProjectsFixtures.project_fixture()
+
+    {:ok, api_key} =
+      SentinelCp.Accounts.create_api_key(%{
+        name: "test-api-key",
+        user_id: user.id,
+        project_id: project.id,
+        scopes: opts[:scopes] || ["read", "write"]
+      })
+
+    conn = Plug.Conn.put_req_header(conn, "authorization", "Bearer #{api_key.key}")
+    {conn, api_key}
+  end
 end

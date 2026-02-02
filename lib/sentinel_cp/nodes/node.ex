@@ -24,6 +24,8 @@ defmodule SentinelCp.Nodes.Node do
     field :status, :string, default: "unknown"
     field :last_seen_at, :utc_datetime
     field :registered_at, :utc_datetime
+    field :active_bundle_id, :binary_id
+    field :staged_bundle_id, :binary_id
 
     belongs_to :project, SentinelCp.Projects.Project
     has_many :heartbeats, SentinelCp.Nodes.NodeHeartbeat

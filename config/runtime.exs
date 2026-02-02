@@ -23,6 +23,26 @@ end
 config :sentinel_cp, SentinelCpWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# Bundle storage (S3/MinIO)
+if s3_endpoint = System.get_env("S3_ENDPOINT") do
+  config :sentinel_cp, SentinelCp.Bundles.Storage,
+    bucket: System.get_env("S3_BUCKET", "sentinel-bundles"),
+    ex_aws_config: [
+      access_key_id: System.get_env("S3_ACCESS_KEY_ID"),
+      secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY"),
+      scheme: URI.parse(s3_endpoint).scheme <> "://",
+      host: URI.parse(s3_endpoint).host,
+      port: URI.parse(s3_endpoint).port,
+      region: System.get_env("S3_REGION", "us-east-1")
+    ]
+end
+
+# Bundle compiler
+if sentinel_binary = System.get_env("SENTINEL_BINARY") do
+  config :sentinel_cp, SentinelCp.Bundles.Compiler,
+    sentinel_binary: sentinel_binary
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

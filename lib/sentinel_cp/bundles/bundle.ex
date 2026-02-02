@@ -1,0 +1,54 @@
+defmodule SentinelCp.Bundles.Bundle do
+  @moduledoc """
+  Bundle schema representing an immutable, content-addressed configuration artifact.
+  """
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  @primary_key {:id, :binary_id, autogenerate: true}
+  @foreign_key_type :binary_id
+
+  @statuses ~w(pending compiling compiled failed superseded)
+  @risk_levels ~w(low medium high)
+
+  schema "bundles" do
+    field :version, :string
+    field :status, :string, default: "pending"
+    field :checksum, :string
+    field :size_bytes, :integer
+    field :storage_key, :string
+    field :config_source, :string
+    field :manifest, :map, default: %{}
+    field :compiler_output, :string
+    field :risk_level, :string, default: "low"
+    field :created_by_id, :binary_id
+
+    belongs_to :project, SentinelCp.Projects.Project
+
+    timestamps(type: :utc_datetime)
+  end
+
+  def create_changeset(bundle, attrs) do
+    bundle
+    |> cast(attrs, [:version, :config_source, :project_id, :created_by_id, :risk_level])
+    |> validate_required([:version, :config_source, :project_id])
+    |> validate_length(:version, min: 1, max: 100)
+    |> validate_inclusion(:risk_level, @risk_levels)
+    |> put_change(:status, "pending")
+    |> unique_constraint([:project_id, :version])
+    |> foreign_key_constraint(:project_id)
+  end
+
+  def compilation_changeset(bundle, attrs) do
+    bundle
+    |> cast(attrs, [:status, :checksum, :size_bytes, :storage_key, :manifest, :compiler_output])
+    |> validate_required([:status])
+    |> validate_inclusion(:status, @statuses)
+  end
+
+  def status_changeset(bundle, status) do
+    bundle
+    |> change(status: status)
+    |> validate_inclusion(:status, @statuses)
+  end
+end

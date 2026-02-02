@@ -81,15 +81,45 @@ defmodule SentinelCpWeb.Api.NodeController do
   Requires node authentication.
   """
   def latest_bundle(conn, _params) do
-    _node = conn.assigns.current_node
+    node = conn.assigns.current_node
 
-    # TODO: Return bundle assignment when bundles are implemented
-    conn
-    |> put_status(:ok)
-    |> json(%{
-      no_update: true,
-      poll_after_s: 30
-    })
+    case node.staged_bundle_id do
+      nil ->
+        conn
+        |> put_status(:ok)
+        |> json(%{no_update: true, poll_after_s: 30})
+
+      staged_id when staged_id != node.active_bundle_id ->
+        bundle = SentinelCp.Bundles.get_bundle(staged_id)
+
+        if bundle && bundle.status == "compiled" do
+          download_url =
+            case SentinelCp.Bundles.Storage.presigned_url(bundle.storage_key) do
+              {:ok, url} -> url
+              _ -> nil
+            end
+
+          conn
+          |> put_status(:ok)
+          |> json(%{
+            bundle_id: bundle.id,
+            version: bundle.version,
+            checksum: bundle.checksum,
+            size_bytes: bundle.size_bytes,
+            download_url: download_url,
+            poll_after_s: 30
+          })
+        else
+          conn
+          |> put_status(:ok)
+          |> json(%{no_update: true, poll_after_s: 30})
+        end
+
+      _ ->
+        conn
+        |> put_status(:ok)
+        |> json(%{no_update: true, poll_after_s: 30})
+    end
   end
 
   # Private helpers

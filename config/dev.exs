@@ -87,3 +87,19 @@ config :phoenix_live_view,
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# Bundle storage (MinIO in development)
+config :sentinel_cp, SentinelCp.Bundles.Storage,
+  bucket: "sentinel-bundles",
+  ex_aws_config: [
+    access_key_id: "minioadmin",
+    secret_access_key: "minioadmin",
+    scheme: "http://",
+    host: "localhost",
+    port: 9000,
+    region: "us-east-1"
+  ]
+
+# Bundle compiler
+config :sentinel_cp, SentinelCp.Bundles.Compiler,
+  sentinel_binary: System.get_env("SENTINEL_BINARY", "sentinel")

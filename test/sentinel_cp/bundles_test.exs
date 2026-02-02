@@ -1,0 +1,200 @@
+defmodule SentinelCp.BundlesTest do
+  use SentinelCp.DataCase
+
+  alias SentinelCp.Bundles
+  alias SentinelCp.Bundles.Bundle
+
+  import SentinelCp.ProjectsFixtures
+  import SentinelCp.NodesFixtures
+
+  @valid_kdl """
+  system {
+    workers 4
+  }
+  listeners {
+    listener "http" address="0.0.0.0:8080"
+  }
+  """
+
+  defp bundle_fixture(attrs \\ %{}) do
+    project = attrs[:project] || project_fixture()
+
+    {:ok, bundle} =
+      Bundles.create_bundle(%{
+        project_id: project.id,
+        version: attrs[:version] || "1.0.#{System.unique_integer([:positive])}",
+        config_source: attrs[:config_source] || @valid_kdl
+      })
+
+    bundle
+  end
+
+  describe "create_bundle/1" do
+    test "creates a bundle with valid attributes" do
+      project = project_fixture()
+
+      assert {:ok, %Bundle{} = bundle} =
+               Bundles.create_bundle(%{
+                 project_id: project.id,
+                 version: "1.0.0",
+                 config_source: @valid_kdl
+               })
+
+      assert bundle.version == "1.0.0"
+      assert bundle.status == "pending"
+      assert bundle.config_source == @valid_kdl
+    end
+
+    test "returns error for missing required fields" do
+      assert {:error, changeset} = Bundles.create_bundle(%{})
+      errors = errors_on(changeset)
+      assert errors[:version]
+      assert errors[:config_source]
+      assert errors[:project_id]
+    end
+
+    test "returns error for duplicate version within project" do
+      project = project_fixture()
+
+      {:ok, _} =
+        Bundles.create_bundle(%{
+          project_id: project.id,
+          version: "1.0.0",
+          config_source: @valid_kdl
+        })
+
+      assert {:error, changeset} =
+               Bundles.create_bundle(%{
+                 project_id: project.id,
+                 version: "1.0.0",
+                 config_source: @valid_kdl
+               })
+
+      assert %{project_id: ["has already been taken"]} = errors_on(changeset)
+    end
+
+    test "allows same version in different projects" do
+      p1 = project_fixture()
+      p2 = project_fixture()
+
+      assert {:ok, _} =
+               Bundles.create_bundle(%{project_id: p1.id, version: "1.0.0", config_source: @valid_kdl})
+
+      assert {:ok, _} =
+               Bundles.create_bundle(%{project_id: p2.id, version: "1.0.0", config_source: @valid_kdl})
+    end
+  end
+
+  describe "list_bundles/2" do
+    test "returns bundles for a project" do
+      project = project_fixture()
+      _b1 = bundle_fixture(%{project: project, version: "1.0.0"})
+      _b2 = bundle_fixture(%{project: project, version: "2.0.0"})
+
+      bundles = Bundles.list_bundles(project.id)
+      assert length(bundles) == 2
+    end
+
+    test "filters by status" do
+      project = project_fixture()
+      _bundle = bundle_fixture(%{project: project})
+
+      # Oban inline mode runs the compile worker synchronously,
+      # which changes status from "pending" to "failed" (no sentinel binary in test)
+      bundles = Bundles.list_bundles(project.id, status: "failed")
+      assert length(bundles) == 1
+
+      bundles = Bundles.list_bundles(project.id, status: "compiled")
+      assert bundles == []
+    end
+  end
+
+  describe "get_bundle/1" do
+    test "returns bundle by id" do
+      bundle = bundle_fixture()
+      found = Bundles.get_bundle(bundle.id)
+      assert found.id == bundle.id
+    end
+
+    test "returns nil for unknown id" do
+      refute Bundles.get_bundle(Ecto.UUID.generate())
+    end
+  end
+
+  describe "get_latest_bundle/1" do
+    test "returns latest compiled bundle" do
+      project = project_fixture()
+      bundle = bundle_fixture(%{project: project})
+
+      # Not compiled yet, should return nil
+      refute Bundles.get_latest_bundle(project.id)
+
+      # Mark as compiled
+      {:ok, _} = Bundles.update_status(bundle, "compiled")
+      latest = Bundles.get_latest_bundle(project.id)
+      assert latest.id == bundle.id
+    end
+  end
+
+  describe "update_compilation/2" do
+    test "updates compilation results" do
+      bundle = bundle_fixture()
+
+      assert {:ok, updated} =
+               Bundles.update_compilation(bundle, %{
+                 status: "compiled",
+                 checksum: "abc123",
+                 size_bytes: 1024,
+                 storage_key: "bundles/test/123.tar.zst",
+                 manifest: %{"files" => []}
+               })
+
+      assert updated.status == "compiled"
+      assert updated.checksum == "abc123"
+      assert updated.size_bytes == 1024
+    end
+  end
+
+  describe "assign_bundle_to_nodes/2" do
+    test "assigns bundle to nodes" do
+      project = project_fixture()
+      bundle = bundle_fixture(%{project: project})
+      node1 = node_fixture(%{project: project})
+      node2 = node_fixture(%{project: project})
+
+      assert {:ok, 2} = Bundles.assign_bundle_to_nodes(bundle, [node1.id, node2.id])
+
+      updated = SentinelCp.Nodes.get_node!(node1.id)
+      assert updated.staged_bundle_id == bundle.id
+    end
+
+    test "only assigns to nodes in same project" do
+      project = project_fixture()
+      other_project = project_fixture()
+      bundle = bundle_fixture(%{project: project})
+      node = node_fixture(%{project: other_project})
+
+      assert {:ok, 0} = Bundles.assign_bundle_to_nodes(bundle, [node.id])
+    end
+  end
+
+  describe "delete_bundle/1" do
+    test "deletes pending bundle" do
+      bundle = bundle_fixture()
+      assert {:ok, _} = Bundles.delete_bundle(bundle)
+      refute Bundles.get_bundle(bundle.id)
+    end
+
+    test "deletes failed bundle" do
+      bundle = bundle_fixture()
+      {:ok, failed} = Bundles.update_status(bundle, "failed")
+      assert {:ok, _} = Bundles.delete_bundle(failed)
+    end
+
+    test "refuses to delete compiled bundle" do
+      bundle = bundle_fixture()
+      {:ok, compiled} = Bundles.update_status(bundle, "compiled")
+      assert {:error, :cannot_delete_active_bundle} = Bundles.delete_bundle(compiled)
+    end
+  end
+end

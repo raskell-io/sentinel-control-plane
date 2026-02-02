@@ -1,6 +1,9 @@
 defmodule SentinelCpWeb.Router do
   use SentinelCpWeb, :router
 
+  import SentinelCpWeb.Plugs.Auth,
+    only: [fetch_current_user: 2, require_authenticated_user: 2, redirect_if_user_is_authenticated: 2]
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -8,6 +11,7 @@ defmodule SentinelCpWeb.Router do
     plug :put_root_layout, html: {SentinelCpWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :fetch_current_user
   end
 
   pipeline :api do
@@ -18,15 +22,36 @@ defmodule SentinelCpWeb.Router do
     plug SentinelCpWeb.Plugs.NodeAuth
   end
 
-  # Browser routes
+  pipeline :api_auth do
+    plug SentinelCpWeb.Plugs.ApiAuth
+  end
+
+  # Auth routes (no login required)
   scope "/", SentinelCpWeb do
-    pipe_through :browser
+    pipe_through [:browser, :redirect_if_user_is_authenticated]
+
+    live "/login", AuthLive.Login, :login
+  end
+
+  # Session management
+  scope "/", SentinelCpWeb do
+    pipe_through [:browser]
+
+    post "/session", SessionController, :create
+    delete "/session", SessionController, :delete
+  end
+
+  # Browser routes (login required)
+  scope "/", SentinelCpWeb do
+    pipe_through [:browser, :require_authenticated_user]
 
     get "/", PageController, :home
 
     live "/projects", ProjectsLive.Index, :index
     live "/projects/:project_slug/nodes", NodesLive.Index, :index
     live "/projects/:project_slug/nodes/:id", NodesLive.Show, :show
+    live "/projects/:project_slug/bundles", BundlesLive.Index, :index
+    live "/projects/:project_slug/bundles/:id", BundlesLive.Show, :show
   end
 
   # Node-facing API (called by Sentinel nodes)
@@ -47,7 +72,7 @@ defmodule SentinelCpWeb.Router do
 
   # Control plane API (called by operators/API keys)
   scope "/api/v1", SentinelCpWeb.Api do
-    pipe_through :api
+    pipe_through [:api, :api_auth]
 
     # Project nodes management
     scope "/projects/:project_slug" do
@@ -55,6 +80,13 @@ defmodule SentinelCpWeb.Router do
       get "/nodes/stats", ProjectNodesController, :stats
       get "/nodes/:id", ProjectNodesController, :show
       delete "/nodes/:id", ProjectNodesController, :delete
+
+      # Bundle management
+      post "/bundles", BundleController, :create
+      get "/bundles", BundleController, :index
+      get "/bundles/:id", BundleController, :show
+      get "/bundles/:id/download", BundleController, :download
+      post "/bundles/:id/assign", BundleController, :assign
     end
   end
 

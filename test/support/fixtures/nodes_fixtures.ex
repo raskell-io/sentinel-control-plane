@@ -1,0 +1,41 @@
+defmodule SentinelCp.NodesFixtures do
+  @moduledoc """
+  Test helpers for creating Nodes entities.
+  """
+
+  def unique_node_name, do: "node-#{System.unique_integer([:positive])}"
+
+  def valid_node_attributes(attrs \\ %{}) do
+    project = attrs[:project] || SentinelCp.ProjectsFixtures.project_fixture()
+
+    Enum.into(attrs, %{
+      name: unique_node_name(),
+      project_id: project.id,
+      labels: %{"env" => "test"},
+      capabilities: ["proxy"],
+      version: "0.4.7"
+    })
+  end
+
+  @doc """
+  Creates a node and returns {node, node_key}.
+  The node_key is only available at registration time.
+  """
+  def node_fixture(attrs \\ %{}) do
+    {:ok, node} =
+      attrs
+      |> valid_node_attributes()
+      |> SentinelCp.Nodes.register_node()
+
+    node
+  end
+
+  @doc """
+  Creates a node and returns {node, raw_node_key} tuple.
+  """
+  def node_with_key_fixture(attrs \\ %{}) do
+    node = node_fixture(attrs)
+    # node_key is a virtual field, available only right after registration
+    {node, node.node_key}
+  end
+end

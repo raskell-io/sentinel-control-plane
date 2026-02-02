@@ -139,11 +139,29 @@ defmodule SentinelCpWeb.NodesLive.Show do
           <dl class="space-y-3">
             <div class="flex justify-between">
               <dt class="text-gray-500">Active Bundle</dt>
-              <dd class="font-mono text-sm"><%= @node.active_bundle_id || "None" %></dd>
+              <dd class="font-mono text-sm">
+                <%= if @node.active_bundle_id do %>
+                  <.link navigate={~p"/projects/#{@project.slug}/bundles/#{@node.active_bundle_id}"}
+                    class="link link-primary">
+                    <%= String.slice(@node.active_bundle_id, 0, 8) %>…
+                  </.link>
+                <% else %>
+                  None
+                <% end %>
+              </dd>
             </div>
             <div class="flex justify-between">
               <dt class="text-gray-500">Staged Bundle</dt>
-              <dd class="font-mono text-sm"><%= @node.staged_bundle_id || "None" %></dd>
+              <dd class="font-mono text-sm">
+                <%= if @node.staged_bundle_id do %>
+                  <.link navigate={~p"/projects/#{@project.slug}/bundles/#{@node.staged_bundle_id}"}
+                    class="link link-primary">
+                    <%= String.slice(@node.staged_bundle_id, 0, 8) %>…
+                  </.link>
+                <% else %>
+                  None
+                <% end %>
+              </dd>
             </div>
           </dl>
         </div>
