@@ -98,7 +98,9 @@ defmodule SentinelCpWeb.BundlesLive.Show do
                 </tr>
                 <tr>
                   <td class="font-medium">Size</td>
-                  <td class="font-mono">{if @bundle.size_bytes, do: format_bytes(@bundle.size_bytes), else: "—"}</td>
+                  <td class="font-mono">
+                    {if @bundle.size_bytes, do: format_bytes(@bundle.size_bytes), else: "—"}
+                  </td>
                 </tr>
                 <tr>
                   <td class="font-medium">Risk Level</td>
@@ -130,8 +132,10 @@ defmodule SentinelCpWeb.BundlesLive.Show do
               <tbody>
                 <tr :for={node <- @assigned_nodes}>
                   <td>
-                    <.link navigate={~p"/projects/#{@project.slug}/nodes/#{node.id}"}
-                      class="link link-primary">
+                    <.link
+                      navigate={~p"/projects/#{@project.slug}/nodes/#{node.id}"}
+                      class="link link-primary"
+                    >
                       {node.name}
                     </.link>
                   </td>

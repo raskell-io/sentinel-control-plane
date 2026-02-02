@@ -2,8 +2,12 @@
 erlang = "28.3.1"
 elixir = "1.19.5-otp-28"
 
-[env]
-MIX_ENV = "dev"
+# NOTE: Do not set MIX_ENV globally here. mix test, mix credo, etc. rely on
+# preferred_cli_env / Mix.env() to select the correct environment. A global
+# MIX_ENV = "dev" would override those defaults and break `mix test`
+# (test/support modules wouldn't compile because elixirc_paths only includes
+# "test/support" for :test env).
+# Per-task env overrides are set below where needed.
 
 [tasks.setup]
 description = "Install dependencies and set up the project"

@@ -10,7 +10,7 @@ defmodule SentinelCp.Bundles.CompileWorker do
   require Logger
 
   alias SentinelCp.Bundles
-  alias SentinelCp.Bundles.{Compiler, Storage}
+  alias SentinelCp.Bundles.{Compiler, Signing, Storage}
   alias SentinelCp.Audit
 
   @impl Oban.Worker
@@ -24,6 +24,9 @@ defmodule SentinelCp.Bundles.CompileWorker do
 
     case compile_bundle(bundle) do
       {:ok, result} ->
+        # Sign the bundle if signing is enabled
+        {signature, signing_key_id} = Signing.sign_bundle(result.archive_data)
+
         {:ok, _} =
           Bundles.update_compilation(bundle, %{
             status: "compiled",
@@ -31,12 +34,14 @@ defmodule SentinelCp.Bundles.CompileWorker do
             size_bytes: result.size,
             storage_key: result.storage_key,
             manifest: result.manifest,
-            compiler_output: result.compiler_output
+            compiler_output: result.compiler_output,
+            signature: signature,
+            signing_key_id: signing_key_id
           })
 
         Audit.log_system_action("bundle.compiled", "bundle", bundle.id,
           project_id: bundle.project_id,
-          metadata: %{checksum: result.checksum, size: result.size}
+          metadata: %{checksum: result.checksum, size: result.size, signed: not is_nil(signature)}
         )
 
         Phoenix.PubSub.broadcast(
@@ -84,7 +89,8 @@ defmodule SentinelCp.Bundles.CompileWorker do
          size: assembly.size,
          storage_key: storage_key,
          manifest: assembly.manifest,
-         compiler_output: compiler_output
+         compiler_output: compiler_output,
+         archive_data: assembly.archive
        }}
     end
   end

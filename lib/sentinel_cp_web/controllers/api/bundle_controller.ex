@@ -5,6 +5,7 @@ defmodule SentinelCpWeb.Api.BundleController do
   use SentinelCpWeb, :controller
 
   alias SentinelCp.{Bundles, Projects, Audit}
+  alias SentinelCp.Bundles.{Signing, Storage}
 
   @doc """
   POST /api/v1/projects/:project_slug/bundles
@@ -97,7 +98,14 @@ defmodule SentinelCpWeb.Api.BundleController do
     with {:ok, project} <- get_project(project_slug),
          {:ok, bundle} <- get_bundle(bundle_id, project.id),
          true <- bundle.status == "compiled" || {:error, :not_compiled},
-         {:ok, url} <- Bundles.Storage.presigned_url(bundle.storage_key) do
+         {:ok, url} <- Storage.presigned_url(bundle.storage_key) do
+      api_key = conn.assigns.current_api_key
+
+      Audit.log_api_key_action(api_key, "bundle.downloaded", "bundle", bundle.id,
+        project_id: project.id,
+        metadata: %{checksum: bundle.checksum}
+      )
+
       conn
       |> put_status(:ok)
       |> json(%{download_url: url, checksum: bundle.checksum, size: bundle.size_bytes})
@@ -145,7 +153,49 @@ defmodule SentinelCpWeb.Api.BundleController do
         conn |> put_status(:not_found) |> json(%{error: "Bundle not found"})
 
       {:error, :not_compiled} ->
-        conn |> put_status(:conflict) |> json(%{error: "Bundle must be compiled before assignment"})
+        conn
+        |> put_status(:conflict)
+        |> json(%{error: "Bundle must be compiled before assignment"})
+    end
+  end
+
+  @doc """
+  GET /api/v1/projects/:project_slug/bundles/:id/verify
+  Verifies bundle signature.
+  """
+  def verify(conn, %{"project_slug" => project_slug, "id" => bundle_id}) do
+    with {:ok, project} <- get_project(project_slug),
+         {:ok, bundle} <- get_bundle(bundle_id, project.id),
+         true <- bundle.status == "compiled" || {:error, :not_compiled} do
+      if is_nil(bundle.signature) do
+        conn
+        |> put_status(:ok)
+        |> json(%{verified: false, signed: false, key_id: nil})
+      else
+        case Storage.download(bundle.storage_key) do
+          {:ok, bundle_data} ->
+            {verified, key_id} =
+              Signing.verify_bundle(bundle_data, bundle.signature, bundle.signing_key_id)
+
+            conn
+            |> put_status(:ok)
+            |> json(%{verified: verified, signed: true, key_id: key_id})
+
+          {:error, _reason} ->
+            conn
+            |> put_status(:internal_server_error)
+            |> json(%{error: "Failed to retrieve bundle for verification"})
+        end
+      end
+    else
+      {:error, :project_not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "Project not found"})
+
+      {:error, :bundle_not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "Bundle not found"})
+
+      {:error, :not_compiled} ->
+        conn |> put_status(:conflict) |> json(%{error: "Bundle is not yet compiled"})
     end
   end
 
@@ -176,6 +226,8 @@ defmodule SentinelCpWeb.Api.BundleController do
       risk_level: bundle.risk_level,
       manifest: bundle.manifest,
       compiler_output: bundle.compiler_output,
+      signed: not is_nil(bundle.signature),
+      signing_key_id: bundle.signing_key_id,
       inserted_at: bundle.inserted_at,
       updated_at: bundle.updated_at
     }

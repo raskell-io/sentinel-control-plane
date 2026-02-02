@@ -5,7 +5,7 @@ defmodule SentinelCpWeb.Api.ProjectNodesController do
   """
   use SentinelCpWeb, :controller
 
-  alias SentinelCp.{Nodes, Projects}
+  alias SentinelCp.{Audit, Nodes, Projects}
 
   @doc """
   GET /api/v1/projects/:project_slug/nodes
@@ -80,6 +80,13 @@ defmodule SentinelCpWeb.Api.ProjectNodesController do
     with {:ok, project} <- get_project(project_slug),
          {:ok, node} <- get_node(node_id, project.id),
          {:ok, _} <- Nodes.delete_node(node) do
+      api_key = conn.assigns.current_api_key
+
+      Audit.log_api_key_action(api_key, "node.deleted", "node", node.id,
+        project_id: project.id,
+        metadata: %{node_name: node.name}
+      )
+
       conn
       |> put_status(:no_content)
       |> send_resp(:no_content, "")

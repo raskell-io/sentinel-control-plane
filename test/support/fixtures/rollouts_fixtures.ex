@@ -1,0 +1,48 @@
+defmodule SentinelCp.RolloutsFixtures do
+  @moduledoc """
+  Test helpers for creating Rollouts entities.
+  """
+
+  alias SentinelCp.{Rollouts, Bundles}
+
+  @valid_kdl """
+  system {
+    workers 4
+  }
+  listeners {
+    listener "http" address="0.0.0.0:8080"
+  }
+  """
+
+  def compiled_bundle_fixture(attrs \\ %{}) do
+    project = attrs[:project] || SentinelCp.ProjectsFixtures.project_fixture()
+
+    {:ok, bundle} =
+      Bundles.create_bundle(%{
+        project_id: project.id,
+        version: attrs[:version] || "1.0.#{System.unique_integer([:positive])}",
+        config_source: attrs[:config_source] || @valid_kdl
+      })
+
+    # Force status to compiled (compile worker may fail in test without sentinel binary)
+    {:ok, bundle} = Bundles.update_status(bundle, "compiled")
+    bundle
+  end
+
+  def rollout_fixture(attrs \\ %{}) do
+    project = attrs[:project] || SentinelCp.ProjectsFixtures.project_fixture()
+    bundle = attrs[:bundle] || compiled_bundle_fixture(%{project: project})
+
+    {:ok, rollout} =
+      Rollouts.create_rollout(%{
+        project_id: project.id,
+        bundle_id: bundle.id,
+        target_selector: attrs[:target_selector] || %{"type" => "all"},
+        strategy: attrs[:strategy] || "rolling",
+        batch_size: attrs[:batch_size] || 1,
+        progress_deadline_seconds: attrs[:progress_deadline_seconds] || 600
+      })
+
+    rollout
+  end
+end

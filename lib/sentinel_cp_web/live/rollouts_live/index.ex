@@ -1,0 +1,293 @@
+defmodule SentinelCpWeb.RolloutsLive.Index do
+  use SentinelCpWeb, :live_view
+
+  alias SentinelCp.{Rollouts, Bundles, Projects}
+
+  @impl true
+  def mount(%{"project_slug" => slug}, _session, socket) do
+    case Projects.get_project_by_slug(slug) do
+      nil ->
+        {:ok, push_navigate(socket, to: ~p"/projects")}
+
+      project ->
+        if connected?(socket) do
+          Phoenix.PubSub.subscribe(SentinelCp.PubSub, "rollouts:#{project.id}")
+        end
+
+        rollouts = Rollouts.list_rollouts(project.id)
+        compiled_bundles = Bundles.list_bundles(project.id, status: "compiled")
+
+        {:ok,
+         assign(socket,
+           page_title: "Rollouts — #{project.name}",
+           project: project,
+           rollouts: rollouts,
+           compiled_bundles: compiled_bundles,
+           show_form: false
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("toggle_form", _, socket) do
+    {:noreply, assign(socket, show_form: !socket.assigns.show_form)}
+  end
+
+  @impl true
+  def handle_event("create_rollout", params, socket) do
+    project = socket.assigns.project
+
+    target_selector =
+      case params["target_type"] do
+        "all" ->
+          %{"type" => "all"}
+
+        "labels" ->
+          %{"type" => "labels", "labels" => parse_labels(params["labels"] || "")}
+
+        "node_ids" ->
+          %{"type" => "node_ids", "node_ids" => parse_node_ids(params["node_ids"] || "")}
+
+        _ ->
+          %{"type" => "all"}
+      end
+
+    attrs = %{
+      project_id: project.id,
+      bundle_id: params["bundle_id"],
+      target_selector: target_selector,
+      strategy: params["strategy"] || "rolling",
+      batch_size: parse_int(params["batch_size"], 1)
+    }
+
+    case Rollouts.create_rollout(attrs) do
+      {:ok, rollout} ->
+        # Plan and start the rollout
+        case Rollouts.plan_rollout(rollout) do
+          {:ok, _} ->
+            rollouts = Rollouts.list_rollouts(project.id)
+
+            {:noreply,
+             socket
+             |> assign(rollouts: rollouts, show_form: false)
+             |> put_flash(:info, "Rollout created and started.")}
+
+          {:error, :no_target_nodes} ->
+            {:noreply, put_flash(socket, :error, "No target nodes matched the selector.")}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, "Failed to plan rollout: #{inspect(reason)}")}
+        end
+
+      {:error, :bundle_not_compiled} ->
+        {:noreply, put_flash(socket, :error, "Bundle must be compiled before rollout.")}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        errors =
+          Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)
+          |> Enum.map_join(", ", fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end)
+
+        {:noreply, put_flash(socket, :error, "Failed to create rollout: #{errors}")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to create rollout: #{inspect(reason)}")}
+    end
+  end
+
+  @impl true
+  def handle_info({:rollout_updated, _rollout_id}, socket) do
+    rollouts = Rollouts.list_rollouts(socket.assigns.project.id)
+    {:noreply, assign(socket, rollouts: rollouts)}
+  end
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <div class="container mx-auto px-4 py-8">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <div class="text-sm breadcrumbs mb-2">
+            <ul>
+              <li><.link navigate={~p"/projects"}>Projects</.link></li>
+              <li><.link navigate={~p"/projects/#{@project.slug}/nodes"}>{@project.name}</.link></li>
+              <li>Rollouts</li>
+            </ul>
+          </div>
+          <h1 class="text-2xl font-bold">Rollouts</h1>
+        </div>
+        <button class="btn btn-primary btn-sm" phx-click="toggle_form">
+          New Rollout
+        </button>
+      </div>
+
+      <div :if={@show_form} class="card bg-base-200 mb-6">
+        <div class="card-body">
+          <h2 class="card-title text-lg">Create Rollout</h2>
+          <form phx-submit="create_rollout" class="space-y-4">
+            <div class="form-control">
+              <label class="label"><span class="label-text">Bundle</span></label>
+              <select name="bundle_id" required class="select select-bordered w-full max-w-xs">
+                <option value="">Select a compiled bundle</option>
+                <option :for={bundle <- @compiled_bundles} value={bundle.id}>
+                  {bundle.version}
+                </option>
+              </select>
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text">Target</span></label>
+              <select name="target_type" class="select select-bordered w-full max-w-xs">
+                <option value="all">All nodes</option>
+                <option value="labels">By labels</option>
+                <option value="node_ids">Specific node IDs</option>
+              </select>
+            </div>
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Labels (key=value, comma-separated)</span>
+              </label>
+              <input
+                type="text"
+                name="labels"
+                class="input input-bordered w-full max-w-xs"
+                placeholder="env=production,region=us-east"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text">Node IDs (comma-separated)</span></label>
+              <input
+                type="text"
+                name="node_ids"
+                class="input input-bordered w-full max-w-xs"
+                placeholder="node-id-1,node-id-2"
+              />
+            </div>
+            <div class="flex gap-4">
+              <div class="form-control">
+                <label class="label"><span class="label-text">Strategy</span></label>
+                <select name="strategy" class="select select-bordered">
+                  <option value="rolling">Rolling</option>
+                  <option value="all_at_once">All at once</option>
+                </select>
+              </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">Batch Size</span></label>
+                <input
+                  type="number"
+                  name="batch_size"
+                  value="1"
+                  min="1"
+                  class="input input-bordered w-24"
+                />
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button type="submit" class="btn btn-primary btn-sm">Create & Start</button>
+              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_form">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>State</th>
+              <th>Bundle</th>
+              <th>Strategy</th>
+              <th>Target</th>
+              <th>Started</th>
+              <th>Completed</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={rollout <- @rollouts} class="hover">
+              <td>
+                <span class={[
+                  "badge badge-sm",
+                  rollout.state == "completed" && "badge-success",
+                  rollout.state == "running" && "badge-warning",
+                  rollout.state == "failed" && "badge-error",
+                  rollout.state == "cancelled" && "badge-error",
+                  rollout.state == "paused" && "badge-info",
+                  rollout.state == "pending" && "badge-ghost"
+                ]}>
+                  {rollout.state}
+                </span>
+              </td>
+              <td class="font-mono text-sm">{rollout.bundle_id |> String.slice(0, 8)}</td>
+              <td>{rollout.strategy}</td>
+              <td class="text-sm">{format_target(rollout.target_selector)}</td>
+              <td class="text-sm">
+                {if rollout.started_at,
+                  do: Calendar.strftime(rollout.started_at, "%Y-%m-%d %H:%M"),
+                  else: "—"}
+              </td>
+              <td class="text-sm">
+                {if rollout.completed_at,
+                  do: Calendar.strftime(rollout.completed_at, "%Y-%m-%d %H:%M"),
+                  else: "—"}
+              </td>
+              <td>
+                <.link
+                  navigate={~p"/projects/#{@project.slug}/rollouts/#{rollout.id}"}
+                  class="btn btn-ghost btn-xs"
+                >
+                  Details
+                </.link>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div :if={@rollouts == []} class="text-center py-12 text-base-content/50">
+          No rollouts yet. Create one to deploy a bundle.
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp format_target(%{"type" => "all"}), do: "All nodes"
+
+  defp format_target(%{"type" => "labels", "labels" => labels}) do
+    labels |> Enum.map_join(", ", fn {k, v} -> "#{k}=#{v}" end)
+  end
+
+  defp format_target(%{"type" => "node_ids", "node_ids" => ids}) do
+    "#{length(ids)} node(s)"
+  end
+
+  defp format_target(_), do: "—"
+
+  defp parse_labels(str) do
+    str
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reduce(%{}, fn pair, acc ->
+      case String.split(pair, "=", parts: 2) do
+        [key, value] -> Map.put(acc, String.trim(key), String.trim(value))
+        _ -> acc
+      end
+    end)
+  end
+
+  defp parse_node_ids(str) do
+    str
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+  end
+
+  defp parse_int(nil, default), do: default
+  defp parse_int("", default), do: default
+
+  defp parse_int(str, default) do
+    case Integer.parse(str) do
+      {n, _} -> n
+      :error -> default
+    end
+  end
+end

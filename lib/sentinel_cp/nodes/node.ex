@@ -41,11 +41,21 @@ defmodule SentinelCp.Nodes.Node do
     node_key = generate_node_key()
 
     node
-    |> cast(attrs, [:name, :labels, :capabilities, :version, :ip, :hostname, :metadata, :project_id])
+    |> cast(attrs, [
+      :name,
+      :labels,
+      :capabilities,
+      :version,
+      :ip,
+      :hostname,
+      :metadata,
+      :project_id
+    ])
     |> validate_required([:name, :project_id])
     |> validate_length(:name, min: 1, max: 100)
     |> validate_format(:name, ~r/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/,
-      message: "must start with alphanumeric and contain only alphanumeric, underscore, dot, or hyphen"
+      message:
+        "must start with alphanumeric and contain only alphanumeric, underscore, dot, or hyphen"
     )
     |> put_change(:node_key, node_key)
     |> put_change(:node_key_hash, hash_node_key(node_key))

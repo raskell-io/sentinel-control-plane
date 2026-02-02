@@ -5,7 +5,10 @@ defmodule SentinelCp.Repo.Migrations.CreateNodesTables do
     # Nodes table
     create table(:nodes, primary_key: false) do
       add :id, :binary_id, primary_key: true
-      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all),
+        null: false
+
       add :name, :string, null: false
       add :node_key_hash, :string, null: false
       add :labels, :map, default: %{}
@@ -45,7 +48,8 @@ defmodule SentinelCp.Repo.Migrations.CreateNodesTables do
     create table(:audit_logs, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :project_id, :binary_id
-      add :actor_type, :string, null: false  # user, api_key, system, node
+      # user, api_key, system, node
+      add :actor_type, :string, null: false
       add :actor_id, :binary_id
       add :action, :string, null: false
       add :resource_type, :string, null: false

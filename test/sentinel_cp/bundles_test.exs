@@ -78,10 +78,18 @@ defmodule SentinelCp.BundlesTest do
       p2 = project_fixture()
 
       assert {:ok, _} =
-               Bundles.create_bundle(%{project_id: p1.id, version: "1.0.0", config_source: @valid_kdl})
+               Bundles.create_bundle(%{
+                 project_id: p1.id,
+                 version: "1.0.0",
+                 config_source: @valid_kdl
+               })
 
       assert {:ok, _} =
-               Bundles.create_bundle(%{project_id: p2.id, version: "1.0.0", config_source: @valid_kdl})
+               Bundles.create_bundle(%{
+                 project_id: p2.id,
+                 version: "1.0.0",
+                 config_source: @valid_kdl
+               })
     end
   end
 

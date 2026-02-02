@@ -91,7 +91,8 @@ defmodule SentinelCp.Bundles.Compiler do
   end
 
   defp write_temp_config(config_source) do
-    tmpfile = Path.join(System.tmp_dir!(), "sentinel-validate-#{System.unique_integer([:positive])}.kdl")
+    tmpfile =
+      Path.join(System.tmp_dir!(), "sentinel-validate-#{System.unique_integer([:positive])}.kdl")
 
     case File.write(tmpfile, config_source) do
       :ok -> {:ok, tmpfile}

@@ -35,6 +35,28 @@ defmodule SentinelCpWeb.Plugs.Auth do
   end
 
   @doc """
+  Plug that requires the current user to have one of the allowed roles.
+  Redirects with flash on failure.
+
+  ## Examples
+
+      plug :require_role, ["admin"]
+      plug :require_role, ["admin", "operator"]
+  """
+  def require_role(conn, allowed_roles) do
+    user = conn.assigns[:current_user]
+
+    if user && user.role in allowed_roles do
+      conn
+    else
+      conn
+      |> put_flash(:error, "You do not have permission to access this page.")
+      |> redirect(to: "/projects")
+      |> halt()
+    end
+  end
+
+  @doc """
   Plug that redirects authenticated users away from auth pages.
   """
   def redirect_if_user_is_authenticated(conn, _opts) do

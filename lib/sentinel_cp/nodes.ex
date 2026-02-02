@@ -196,7 +196,10 @@ defmodule SentinelCp.Nodes do
     # This is a simple implementation - for production, consider a more efficient approach
     subquery =
       from(h in NodeHeartbeat,
-        select: %{id: h.id, row_num: over(row_number(), partition_by: h.node_id, order_by: [desc: h.inserted_at])}
+        select: %{
+          id: h.id,
+          row_num: over(row_number(), partition_by: h.node_id, order_by: [desc: h.inserted_at])
+        }
       )
 
     from(h in NodeHeartbeat,

@@ -35,9 +35,7 @@ defmodule SentinelCp.Bundles.Storage do
   def presigned_url(key, expires_in \\ 3600) do
     config = ex_aws_config()
 
-    ExAws.S3.presigned_url(config, :get, bucket(), key,
-      expires_in: expires_in
-    )
+    ExAws.S3.presigned_url(config, :get, bucket(), key, expires_in: expires_in)
   end
 
   @doc """

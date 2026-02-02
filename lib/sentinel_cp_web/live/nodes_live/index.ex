@@ -42,7 +42,11 @@ defmodule SentinelCpWeb.NodesLive.Index do
   @impl true
   def handle_event("filter", %{"status" => status}, socket) do
     status = if status == "", do: nil, else: status
-    {:noreply, push_patch(socket, to: ~p"/projects/#{socket.assigns.project.slug}/nodes?#{[status: status]}")}
+
+    {:noreply,
+     push_patch(socket,
+       to: ~p"/projects/#{socket.assigns.project.slug}/nodes?#{[status: status]}"
+     )}
   end
 
   @impl true
@@ -87,20 +91,20 @@ defmodule SentinelCpWeb.NodesLive.Index do
     <div class="container mx-auto px-4 py-8">
       <div class="flex justify-between items-center mb-6">
         <div>
-          <h1 class="text-2xl font-bold"><%= @project.name %> / Nodes</h1>
+          <h1 class="text-2xl font-bold">{@project.name} / Nodes</h1>
           <p class="text-gray-500 mt-1">Manage Sentinel proxy instances</p>
         </div>
       </div>
-
-      <!-- Stats Cards -->
+      
+    <!-- Stats Cards -->
       <div class="grid grid-cols-4 gap-4 mb-6">
         <.stat_card label="Total" value={Enum.count(@nodes)} color="blue" />
         <.stat_card label="Online" value={Map.get(@stats, "online", 0)} color="green" />
         <.stat_card label="Offline" value={Map.get(@stats, "offline", 0)} color="red" />
         <.stat_card label="Unknown" value={Map.get(@stats, "unknown", 0)} color="gray" />
       </div>
-
-      <!-- Filters -->
+      
+    <!-- Filters -->
       <div class="flex gap-4 mb-4">
         <form phx-change="filter" class="flex gap-2">
           <select name="status" class="select select-bordered select-sm">
@@ -111,8 +115,8 @@ defmodule SentinelCpWeb.NodesLive.Index do
           </select>
         </form>
       </div>
-
-      <!-- Nodes Table -->
+      
+    <!-- Nodes Table -->
       <div class="bg-base-100 rounded-lg shadow overflow-hidden">
         <table class="table w-full">
           <thead>
@@ -133,16 +137,16 @@ defmodule SentinelCpWeb.NodesLive.Index do
                     navigate={~p"/projects/#{@project.slug}/nodes/#{node.id}"}
                     class="font-medium text-primary hover:underline"
                   >
-                    <%= node.name %>
+                    {node.name}
                   </.link>
                 </td>
                 <td>
                   <.status_badge status={node.status} />
                 </td>
-                <td class="font-mono text-sm"><%= node.version || "-" %></td>
-                <td class="font-mono text-sm"><%= node.ip || "-" %></td>
+                <td class="font-mono text-sm">{node.version || "-"}</td>
+                <td class="font-mono text-sm">{node.ip || "-"}</td>
                 <td class="text-sm text-gray-500">
-                  <%= if node.last_seen_at, do: format_relative_time(node.last_seen_at), else: "Never" %>
+                  {if node.last_seen_at, do: format_relative_time(node.last_seen_at), else: "Never"}
                 </td>
                 <td>
                   <button
@@ -162,7 +166,9 @@ defmodule SentinelCpWeb.NodesLive.Index do
         <%= if Enum.empty?(@nodes) do %>
           <div class="p-8 text-center text-gray-500">
             <p>No nodes found.</p>
-            <p class="text-sm mt-2">Nodes will appear here once they register with the control plane.</p>
+            <p class="text-sm mt-2">
+              Nodes will appear here once they register with the control plane.
+            </p>
           </div>
         <% end %>
       </div>
@@ -183,8 +189,8 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
     ~H"""
     <div class="bg-base-100 rounded-lg shadow p-4">
-      <div class="text-sm text-gray-500"><%= @label %></div>
-      <div class={"text-2xl font-bold #{@color_class}"}><%= @value %></div>
+      <div class="text-sm text-gray-500">{@label}</div>
+      <div class={"text-2xl font-bold #{@color_class}"}>{@value}</div>
     </div>
     """
   end
@@ -200,7 +206,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
     assigns = assign(assigns, class: class, text: text)
 
     ~H"""
-    <span class={"badge #{@class}"}><%= @text %></span>
+    <span class={"badge #{@class}"}>{@text}</span>
     """
   end
 

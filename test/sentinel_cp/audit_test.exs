@@ -88,24 +88,33 @@ defmodule SentinelCp.AuditTest do
       project = project_fixture()
       user = user_fixture()
 
-      {:ok, _} = Audit.log_user_action(user, "project.updated", "project", project.id,
-        project_id: project.id)
+      {:ok, _} =
+        Audit.log_user_action(user, "project.updated", "project", project.id,
+          project_id: project.id
+        )
 
-      logs = Audit.list_audit_logs(project.id)
+      {logs, total} = Audit.list_audit_logs(project.id)
       assert length(logs) == 1
+      assert total == 1
     end
 
     test "filters by action" do
       project = project_fixture()
       user = user_fixture()
 
-      {:ok, _} = Audit.log_user_action(user, "node.created", "node", Ecto.UUID.generate(),
-        project_id: project.id)
-      {:ok, _} = Audit.log_user_action(user, "node.deleted", "node", Ecto.UUID.generate(),
-        project_id: project.id)
+      {:ok, _} =
+        Audit.log_user_action(user, "node.created", "node", Ecto.UUID.generate(),
+          project_id: project.id
+        )
 
-      logs = Audit.list_audit_logs(project.id, action: "node.created")
+      {:ok, _} =
+        Audit.log_user_action(user, "node.deleted", "node", Ecto.UUID.generate(),
+          project_id: project.id
+        )
+
+      {logs, total} = Audit.list_audit_logs(project.id, action: "node.created")
       assert length(logs) == 1
+      assert total == 1
       assert hd(logs).action == "node.created"
     end
 
@@ -113,13 +122,19 @@ defmodule SentinelCp.AuditTest do
       project = project_fixture()
       user = user_fixture()
 
-      {:ok, _} = Audit.log_user_action(user, "node.created", "node", Ecto.UUID.generate(),
-        project_id: project.id)
-      {:ok, _} = Audit.log_user_action(user, "bundle.created", "bundle", Ecto.UUID.generate(),
-        project_id: project.id)
+      {:ok, _} =
+        Audit.log_user_action(user, "node.created", "node", Ecto.UUID.generate(),
+          project_id: project.id
+        )
 
-      logs = Audit.list_audit_logs(project.id, resource_type: "bundle")
+      {:ok, _} =
+        Audit.log_user_action(user, "bundle.created", "bundle", Ecto.UUID.generate(),
+          project_id: project.id
+        )
+
+      {logs, total} = Audit.list_audit_logs(project.id, resource_type: "bundle")
       assert length(logs) == 1
+      assert total == 1
       assert hd(logs).resource_type == "bundle"
     end
 
@@ -128,8 +143,9 @@ defmodule SentinelCp.AuditTest do
 
       {:ok, _} = Audit.log_system_action("cleanup", "heartbeat", nil, project_id: project.id)
 
-      logs = Audit.list_audit_logs(project.id, actor_type: "system")
+      {logs, total} = Audit.list_audit_logs(project.id, actor_type: "system")
       assert length(logs) == 1
+      assert total == 1
     end
   end
 

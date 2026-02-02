@@ -18,12 +18,16 @@ defmodule SentinelCp.AccountsTest do
     end
 
     test "returns error with invalid email" do
-      assert {:error, changeset} = Accounts.register_user(%{email: "bad", password: valid_user_password()})
+      assert {:error, changeset} =
+               Accounts.register_user(%{email: "bad", password: valid_user_password()})
+
       assert %{email: ["must have the @ sign and no spaces"]} = errors_on(changeset)
     end
 
     test "returns error with short password" do
-      assert {:error, changeset} = Accounts.register_user(%{email: unique_user_email(), password: "short"})
+      assert {:error, changeset} =
+               Accounts.register_user(%{email: unique_user_email(), password: "short"})
+
       assert %{password: ["should be at least 12 character(s)"]} = errors_on(changeset)
     end
 
@@ -84,7 +88,9 @@ defmodule SentinelCp.AccountsTest do
       new_password = "new_password_123!"
 
       assert {:ok, _updated} =
-               Accounts.update_user_password(user, valid_user_password(), %{password: new_password})
+               Accounts.update_user_password(user, valid_user_password(), %{
+                 password: new_password
+               })
 
       assert Accounts.get_user_by_email_and_password(user.email, new_password)
     end
@@ -93,7 +99,9 @@ defmodule SentinelCp.AccountsTest do
       user = user_fixture()
 
       assert {:error, changeset} =
-               Accounts.update_user_password(user, "wrong_password!!", %{password: "new_password_123!"})
+               Accounts.update_user_password(user, "wrong_password!!", %{
+                 password: "new_password_123!"
+               })
 
       assert %{current_password: ["is not valid"]} = errors_on(changeset)
     end

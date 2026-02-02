@@ -7,13 +7,25 @@ defmodule SentinelCp.Audit do
   alias SentinelCp.Repo
   alias SentinelCp.Audit.AuditLog
 
+  @audit_topic "audit_logs"
+
   @doc """
-  Logs an audit event.
+  Logs an audit event and broadcasts it via PubSub.
   """
   def log(attrs) do
-    %AuditLog{}
-    |> AuditLog.changeset(attrs)
-    |> Repo.insert()
+    result =
+      %AuditLog{}
+      |> AuditLog.changeset(attrs)
+      |> Repo.insert()
+
+    case result do
+      {:ok, log_entry} ->
+        Phoenix.PubSub.broadcast(SentinelCp.PubSub, @audit_topic, {:audit_log_created, log_entry})
+        {:ok, log_entry}
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -81,29 +93,70 @@ defmodule SentinelCp.Audit do
   end
 
   @doc """
-  Lists audit logs for a project.
+  Lists audit logs for a project with filtering and pagination.
+
+  ## Options
+
+    * `:limit` - max results (default 25)
+    * `:offset` - offset for pagination (default 0)
+    * `:action` - filter by action
+    * `:resource_type` - filter by resource type
+    * `:actor_type` - filter by actor type
+
+  Returns `{entries, total_count}`.
   """
   def list_audit_logs(project_id, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 100)
+    limit = Keyword.get(opts, :limit, 25)
     offset = Keyword.get(opts, :offset, 0)
 
-    query =
+    base_query =
       from(a in AuditLog,
         where: a.project_id == ^project_id,
-        order_by: [desc: a.inserted_at],
-        limit: ^limit,
-        offset: ^offset
+        order_by: [desc: a.inserted_at]
       )
 
-    query =
-      Enum.reduce(opts, query, fn
-        {:action, action}, q -> where(q, [a], a.action == ^action)
-        {:resource_type, type}, q -> where(q, [a], a.resource_type == ^type)
-        {:actor_type, type}, q -> where(q, [a], a.actor_type == ^type)
-        _, q -> q
-      end)
+    filtered_query = apply_filters(base_query, opts)
 
-    Repo.all(query)
+    total = Repo.aggregate(filtered_query, :count)
+
+    entries =
+      filtered_query
+      |> limit(^limit)
+      |> offset(^offset)
+      |> Repo.all()
+
+    {entries, total}
+  end
+
+  @doc """
+  Lists all audit logs across projects with filtering and pagination.
+
+  Same options as `list_audit_logs/2` plus:
+    * `:date_from` - filter from date (DateTime)
+    * `:date_to` - filter to date (DateTime)
+
+  Returns `{entries, total_count}`.
+  """
+  def list_all_audit_logs(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 25)
+    offset = Keyword.get(opts, :offset, 0)
+
+    base_query =
+      from(a in AuditLog,
+        order_by: [desc: a.inserted_at]
+      )
+
+    filtered_query = apply_filters(base_query, opts)
+
+    total = Repo.aggregate(filtered_query, :count)
+
+    entries =
+      filtered_query
+      |> limit(^limit)
+      |> offset(^offset)
+      |> Repo.all()
+
+    {entries, total}
   end
 
   @doc """
@@ -118,5 +171,34 @@ defmodule SentinelCp.Audit do
       limit: ^limit
     )
     |> Repo.all()
+  end
+
+  @doc """
+  Subscribes to real-time audit log updates.
+  """
+  def subscribe do
+    Phoenix.PubSub.subscribe(SentinelCp.PubSub, @audit_topic)
+  end
+
+  defp apply_filters(query, opts) do
+    Enum.reduce(opts, query, fn
+      {:action, action}, q when is_binary(action) ->
+        where(q, [a], a.action == ^action)
+
+      {:resource_type, type}, q when is_binary(type) ->
+        where(q, [a], a.resource_type == ^type)
+
+      {:actor_type, type}, q when is_binary(type) ->
+        where(q, [a], a.actor_type == ^type)
+
+      {:date_from, %DateTime{} = dt}, q ->
+        where(q, [a], a.inserted_at >= ^dt)
+
+      {:date_to, %DateTime{} = dt}, q ->
+        where(q, [a], a.inserted_at <= ^dt)
+
+      _, q ->
+        q
+    end)
   end
 end

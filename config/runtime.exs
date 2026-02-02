@@ -39,8 +39,7 @@ end
 
 # Bundle compiler
 if sentinel_binary = System.get_env("SENTINEL_BINARY") do
-  config :sentinel_cp, SentinelCp.Bundles.Compiler,
-    sentinel_binary: sentinel_binary
+  config :sentinel_cp, SentinelCp.Bundles.Compiler, sentinel_binary: sentinel_binary
 end
 
 if config_env() == :prod do

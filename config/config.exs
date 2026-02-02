@@ -73,6 +73,14 @@ config :sentinel_cp, Oban,
     maintenance: 2
   ]
 
+# Bundle signing configuration
+# Disabled by default. Enable in production with Ed25519 key pair.
+config :sentinel_cp, :bundle_signing,
+  enabled: false,
+  key_id: nil,
+  private_key_path: nil,
+  public_key_path: nil
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

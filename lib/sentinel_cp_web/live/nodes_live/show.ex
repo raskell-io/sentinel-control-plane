@@ -87,11 +87,11 @@ defmodule SentinelCpWeb.NodesLive.Show do
       <div class="flex justify-between items-start mb-6">
         <div>
           <h1 class="text-2xl font-bold flex items-center gap-3">
-            <%= @node.name %>
+            {@node.name}
             <.status_badge status={@node.status} />
           </h1>
           <p class="text-gray-500 mt-1">
-            Registered <%= format_datetime(@node.registered_at) %>
+            Registered {format_datetime(@node.registered_at)}
           </p>
         </div>
         <button
@@ -110,30 +110,30 @@ defmodule SentinelCpWeb.NodesLive.Show do
           <dl class="space-y-3">
             <div class="flex justify-between">
               <dt class="text-gray-500">ID</dt>
-              <dd class="font-mono text-sm"><%= @node.id %></dd>
+              <dd class="font-mono text-sm">{@node.id}</dd>
             </div>
             <div class="flex justify-between">
               <dt class="text-gray-500">Hostname</dt>
-              <dd class="font-mono text-sm"><%= @node.hostname || "-" %></dd>
+              <dd class="font-mono text-sm">{@node.hostname || "-"}</dd>
             </div>
             <div class="flex justify-between">
               <dt class="text-gray-500">IP Address</dt>
-              <dd class="font-mono text-sm"><%= @node.ip || "-" %></dd>
+              <dd class="font-mono text-sm">{@node.ip || "-"}</dd>
             </div>
             <div class="flex justify-between">
               <dt class="text-gray-500">Version</dt>
-              <dd class="font-mono text-sm"><%= @node.version || "-" %></dd>
+              <dd class="font-mono text-sm">{@node.version || "-"}</dd>
             </div>
             <div class="flex justify-between">
               <dt class="text-gray-500">Last Seen</dt>
               <dd class="text-sm">
-                <%= if @node.last_seen_at, do: format_relative_time(@node.last_seen_at), else: "Never" %>
+                {if @node.last_seen_at, do: format_relative_time(@node.last_seen_at), else: "Never"}
               </dd>
             </div>
           </dl>
         </div>
-
-        <!-- Bundle Status Card -->
+        
+    <!-- Bundle Status Card -->
         <div class="bg-base-100 rounded-lg shadow p-6">
           <h2 class="text-lg font-semibold mb-4">Bundle Status</h2>
           <dl class="space-y-3">
@@ -141,9 +141,11 @@ defmodule SentinelCpWeb.NodesLive.Show do
               <dt class="text-gray-500">Active Bundle</dt>
               <dd class="font-mono text-sm">
                 <%= if @node.active_bundle_id do %>
-                  <.link navigate={~p"/projects/#{@project.slug}/bundles/#{@node.active_bundle_id}"}
-                    class="link link-primary">
-                    <%= String.slice(@node.active_bundle_id, 0, 8) %>…
+                  <.link
+                    navigate={~p"/projects/#{@project.slug}/bundles/#{@node.active_bundle_id}"}
+                    class="link link-primary"
+                  >
+                    {String.slice(@node.active_bundle_id, 0, 8)}…
                   </.link>
                 <% else %>
                   None
@@ -154,9 +156,11 @@ defmodule SentinelCpWeb.NodesLive.Show do
               <dt class="text-gray-500">Staged Bundle</dt>
               <dd class="font-mono text-sm">
                 <%= if @node.staged_bundle_id do %>
-                  <.link navigate={~p"/projects/#{@project.slug}/bundles/#{@node.staged_bundle_id}"}
-                    class="link link-primary">
-                    <%= String.slice(@node.staged_bundle_id, 0, 8) %>…
+                  <.link
+                    navigate={~p"/projects/#{@project.slug}/bundles/#{@node.staged_bundle_id}"}
+                    class="link link-primary"
+                  >
+                    {String.slice(@node.staged_bundle_id, 0, 8)}…
                   </.link>
                 <% else %>
                   None
@@ -165,15 +169,15 @@ defmodule SentinelCpWeb.NodesLive.Show do
             </div>
           </dl>
         </div>
-
-        <!-- Labels Card -->
+        
+    <!-- Labels Card -->
         <div class="bg-base-100 rounded-lg shadow p-6">
           <h2 class="text-lg font-semibold mb-4">Labels</h2>
           <%= if @node.labels && map_size(@node.labels) > 0 do %>
             <div class="flex flex-wrap gap-2">
               <%= for {key, value} <- @node.labels do %>
                 <span class="badge badge-outline">
-                  <%= key %>: <%= value %>
+                  {key}: {value}
                 </span>
               <% end %>
             </div>
@@ -181,14 +185,14 @@ defmodule SentinelCpWeb.NodesLive.Show do
             <p class="text-gray-500 text-sm">No labels</p>
           <% end %>
         </div>
-
-        <!-- Capabilities Card -->
+        
+    <!-- Capabilities Card -->
         <div class="bg-base-100 rounded-lg shadow p-6">
           <h2 class="text-lg font-semibold mb-4">Capabilities</h2>
           <%= if @node.capabilities && length(@node.capabilities) > 0 do %>
             <div class="flex flex-wrap gap-2">
               <%= for cap <- @node.capabilities do %>
-                <span class="badge badge-primary badge-outline"><%= cap %></span>
+                <span class="badge badge-primary badge-outline">{cap}</span>
               <% end %>
             </div>
           <% else %>
@@ -196,8 +200,8 @@ defmodule SentinelCpWeb.NodesLive.Show do
           <% end %>
         </div>
       </div>
-
-      <!-- Recent Heartbeats -->
+      
+    <!-- Recent Heartbeats -->
       <div class="mt-6 bg-base-100 rounded-lg shadow overflow-hidden">
         <div class="p-4 border-b">
           <h2 class="text-lg font-semibold">Recent Heartbeats</h2>
@@ -214,12 +218,12 @@ defmodule SentinelCpWeb.NodesLive.Show do
           <tbody>
             <%= for hb <- @heartbeats do %>
               <tr class="hover">
-                <td class="text-sm"><%= format_datetime(hb.inserted_at) %></td>
+                <td class="text-sm">{format_datetime(hb.inserted_at)}</td>
                 <td>
                   <.health_badge health={hb.health} />
                 </td>
-                <td class="font-mono text-sm"><%= hb.active_bundle_id || "-" %></td>
-                <td class="font-mono text-sm"><%= hb.staged_bundle_id || "-" %></td>
+                <td class="font-mono text-sm">{hb.active_bundle_id || "-"}</td>
+                <td class="font-mono text-sm">{hb.staged_bundle_id || "-"}</td>
               </tr>
             <% end %>
           </tbody>
@@ -245,7 +249,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
     assigns = assign(assigns, class: class, text: text)
 
     ~H"""
-    <span class={"badge #{@class}"}><%= @text %></span>
+    <span class={"badge #{@class}"}>{@text}</span>
     """
   end
 
@@ -263,7 +267,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
     assigns = assign(assigns, class: class, text: text)
 
     ~H"""
-    <span class={"badge badge-sm #{@class}"}><%= @text %></span>
+    <span class={"badge badge-sm #{@class}"}>{@text}</span>
     """
   end
 

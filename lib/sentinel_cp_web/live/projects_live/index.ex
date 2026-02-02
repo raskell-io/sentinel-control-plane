@@ -33,10 +33,10 @@ defmodule SentinelCpWeb.ProjectsLive.Index do
             navigate={~p"/projects/#{project.slug}/nodes"}
             class="bg-base-100 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
-            <h2 class="text-lg font-semibold"><%= project.name %></h2>
-            <p class="text-gray-500 text-sm mt-1"><%= project.description || "No description" %></p>
+            <h2 class="text-lg font-semibold">{project.name}</h2>
+            <p class="text-gray-500 text-sm mt-1">{project.description || "No description"}</p>
             <div class="mt-4 text-sm text-gray-400">
-              <span class="font-mono"><%= project.slug %></span>
+              <span class="font-mono">{project.slug}</span>
             </div>
           </.link>
         <% end %>

@@ -36,7 +36,7 @@ defmodule SentinelCp.AccountsFixtures do
         name: attrs[:name] || "test-key-#{System.unique_integer([:positive])}",
         user_id: user.id,
         project_id: project.id,
-        scopes: attrs[:scopes] || ["read", "write"],
+        scopes: attrs[:scopes] || [],
         expires_at: attrs[:expires_at]
       })
 

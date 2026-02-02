@@ -32,7 +32,11 @@ defmodule SentinelCpWeb.BundlesLive.Index do
   end
 
   @impl true
-  def handle_event("create_bundle", %{"version" => version, "config_source" => config_source}, socket) do
+  def handle_event(
+        "create_bundle",
+        %{"version" => version, "config_source" => config_source},
+        socket
+      ) do
     project = socket.assigns.project
 
     case Bundles.create_bundle(%{
@@ -95,18 +99,29 @@ defmodule SentinelCpWeb.BundlesLive.Index do
           <form phx-submit="create_bundle" class="space-y-4">
             <div class="form-control">
               <label class="label"><span class="label-text">Version</span></label>
-              <input type="text" name="version" required class="input input-bordered w-full max-w-xs"
-                placeholder="e.g. 1.0.0" />
+              <input
+                type="text"
+                name="version"
+                required
+                class="input input-bordered w-full max-w-xs"
+                placeholder="e.g. 1.0.0"
+              />
             </div>
             <div class="form-control">
               <label class="label"><span class="label-text">KDL Configuration</span></label>
-              <textarea name="config_source" required rows="12"
+              <textarea
+                name="config_source"
+                required
+                rows="12"
                 class="textarea textarea-bordered font-mono text-sm w-full"
-                placeholder="// Paste your sentinel.kdl config here"></textarea>
+                placeholder="// Paste your sentinel.kdl config here"
+              ></textarea>
             </div>
             <div class="flex gap-2">
               <button type="submit" class="btn btn-primary btn-sm">Create & Compile</button>
-              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_upload">Cancel</button>
+              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_upload">
+                Cancel
+              </button>
             </div>
           </form>
         </div>
@@ -146,8 +161,10 @@ defmodule SentinelCpWeb.BundlesLive.Index do
               </td>
               <td class="text-sm">{Calendar.strftime(bundle.inserted_at, "%Y-%m-%d %H:%M")}</td>
               <td>
-                <.link navigate={~p"/projects/#{@project.slug}/bundles/#{bundle.id}"}
-                  class="btn btn-ghost btn-xs">
+                <.link
+                  navigate={~p"/projects/#{@project.slug}/bundles/#{bundle.id}"}
+                  class="btn btn-ghost btn-xs"
+                >
                   Details
                 </.link>
               </td>

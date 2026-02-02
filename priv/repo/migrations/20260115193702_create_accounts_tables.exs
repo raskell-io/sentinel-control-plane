@@ -19,10 +19,12 @@ defmodule SentinelCp.Repo.Migrations.CreateAccountsTables do
     create table(:api_keys, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :user_id, references(:users, type: :binary_id, on_delete: :delete_all)
-      add :project_id, :binary_id  # Will be a FK after projects table exists
+      # Will be a FK after projects table exists
+      add :project_id, :binary_id
       add :name, :string, null: false
       add :key_hash, :string, null: false
-      add :key_prefix, :string, null: false  # First 8 chars for identification
+      # First 8 chars for identification
+      add :key_prefix, :string, null: false
       add :scopes, {:array, :string}, default: []
       add :last_used_at, :utc_datetime
       add :expires_at, :utc_datetime

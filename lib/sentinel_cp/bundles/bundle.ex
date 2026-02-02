@@ -21,6 +21,8 @@ defmodule SentinelCp.Bundles.Bundle do
     field :manifest, :map, default: %{}
     field :compiler_output, :string
     field :risk_level, :string, default: "low"
+    field :signature, :binary
+    field :signing_key_id, :string
     field :created_by_id, :binary_id
 
     belongs_to :project, SentinelCp.Projects.Project
@@ -41,7 +43,7 @@ defmodule SentinelCp.Bundles.Bundle do
 
   def compilation_changeset(bundle, attrs) do
     bundle
-    |> cast(attrs, [:status, :checksum, :size_bytes, :storage_key, :manifest, :compiler_output])
+    |> cast(attrs, [:status, :checksum, :size_bytes, :storage_key, :manifest, :compiler_output, :signature, :signing_key_id])
     |> validate_required([:status])
     |> validate_inclusion(:status, @statuses)
   end

@@ -138,7 +138,10 @@ defmodule SentinelCp.Simulator.Node do
         {:noreply, state}
 
       {:ok, bundle_info} ->
-        Logger.info("[Simulator] Node #{state.name} received new bundle: #{bundle_info.bundle_id}")
+        Logger.info(
+          "[Simulator] Node #{state.name} received new bundle: #{bundle_info.bundle_id}"
+        )
+
         send(self(), {:apply_bundle, bundle_info})
         schedule_poll(state.config.poll_interval_ms)
         {:noreply, state}
@@ -162,11 +165,17 @@ defmodule SentinelCp.Simulator.Node do
     Process.sleep(state.config.apply_delay_ms)
 
     if :rand.uniform() < state.config.failure_rate do
-      Logger.error("[Simulator] Node #{state.name} failed to apply bundle #{bundle_info.bundle_id}")
+      Logger.error(
+        "[Simulator] Node #{state.name} failed to apply bundle #{bundle_info.bundle_id}"
+      )
+
       # Report failure (would call API)
       {:noreply, state}
     else
-      Logger.info("[Simulator] Node #{state.name} successfully applied bundle #{bundle_info.bundle_id}")
+      Logger.info(
+        "[Simulator] Node #{state.name} successfully applied bundle #{bundle_info.bundle_id}"
+      )
+
       # Report success (would call API)
       {:noreply, %{state | current_bundle: bundle_info.bundle_id, staged_bundle: nil}}
     end
@@ -226,9 +235,14 @@ defmodule SentinelCp.Simulator.Node do
     ]
 
     case Req.post(url, body: body, headers: headers) do
-      {:ok, %{status: 200}} -> :ok
-      {:ok, %{status: status, body: body}} -> {:error, "Heartbeat failed: #{status} - #{inspect(body)}"}
-      {:error, reason} -> {:error, reason}
+      {:ok, %{status: 200}} ->
+        :ok
+
+      {:ok, %{status: status, body: body}} ->
+        {:error, "Heartbeat failed: #{status} - #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

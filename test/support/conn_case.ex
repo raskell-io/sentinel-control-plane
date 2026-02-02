@@ -50,6 +50,13 @@ defmodule SentinelCpWeb.ConnCase do
 
   @doc """
   Sets up an API key and adds the Authorization header.
+  Also assigns `:current_api_key` so plugs that depend on it work in unit tests.
+
+  Options:
+    * `:user` - user to own the key (default: new fixture)
+    * `:project` - project to scope the key to (default: new fixture)
+    * `:scopes` - list of scopes (default: [] for full access)
+
   Returns {conn, api_key}.
   """
   def authenticate_api(%Plug.Conn{} = conn, opts \\ []) do
@@ -61,10 +68,14 @@ defmodule SentinelCpWeb.ConnCase do
         name: "test-api-key",
         user_id: user.id,
         project_id: project.id,
-        scopes: opts[:scopes] || ["read", "write"]
+        scopes: opts[:scopes] || []
       })
 
-    conn = Plug.Conn.put_req_header(conn, "authorization", "Bearer #{api_key.key}")
+    conn =
+      conn
+      |> Plug.Conn.put_req_header("authorization", "Bearer #{api_key.key}")
+      |> Plug.Conn.assign(:current_api_key, api_key)
+
     {conn, api_key}
   end
 end
