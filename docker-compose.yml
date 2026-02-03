@@ -1,0 +1,76 @@
+services:
+  app:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: "ecto://sentinel:sentinel@postgres:5432/sentinel_cp"
+      SECRET_KEY_BASE: "change-me-in-production-use-mix-phx-gen-secret-to-generate"
+      PHX_HOST: "localhost"
+      PORT: "4000"
+      S3_ENDPOINT: "http://minio:9000"
+      S3_BUCKET: "sentinel-bundles"
+      S3_ACCESS_KEY_ID: "minioadmin"
+      S3_SECRET_ACCESS_KEY: "minioadmin"
+      S3_REGION: "us-east-1"
+      GITHUB_WEBHOOK_SECRET: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel
+      POSTGRES_DB: sentinel_cp
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb local/sentinel-bundles --ignore-existing;
+      exit 0;
+      "
+
+volumes:
+  pgdata:
+  miniodata:

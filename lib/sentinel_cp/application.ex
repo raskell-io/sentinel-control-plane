@@ -12,6 +12,8 @@ defmodule SentinelCp.Application do
       SentinelCp.Repo,
       {DNSCluster, query: Application.get_env(:sentinel_cp, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: SentinelCp.PubSub},
+      # Prometheus metrics (must start before Endpoint)
+      SentinelCp.PromEx,
       # Background job processing
       {Oban, Application.fetch_env!(:sentinel_cp, Oban)},
       # Start to serve requests, typically the last entry

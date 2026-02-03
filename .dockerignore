@@ -1,0 +1,44 @@
+# Build artifacts
+_build/
+deps/
+
+# Dev/test databases
+*.db
+*.db-shm
+*.db-wal
+
+# Node modules (if any)
+node_modules/
+assets/node_modules/
+
+# IDE
+.elixir_ls/
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# CI/CD
+.github/
+
+# Claude
+.claude/
+
+# Test
+test/
+cover/
+
+# Documentation
+docs/
+*.md
+
+# Environment files
+.env
+.env.*

@@ -41,5 +41,7 @@ config :phoenix,
   sort_verified_routes_query_params: true
 
 # Bundle signing disabled in test (individual tests can override)
-config :sentinel_cp, :bundle_signing,
-  enabled: false
+config :sentinel_cp, :bundle_signing, enabled: false
+
+# GitHub webhook test secret
+config :sentinel_cp, :github_webhook, secret: "test_webhook_secret"

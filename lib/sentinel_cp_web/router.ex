@@ -59,6 +59,21 @@ defmodule SentinelCpWeb.Router do
     plug SentinelCpWeb.Plugs.RequireScope, scope: "api_keys:admin"
   end
 
+  # Health checks (no auth, no session)
+  scope "/", SentinelCpWeb do
+    pipe_through :api
+
+    get "/health", HealthController, :health
+    get "/ready", HealthController, :ready
+  end
+
+  # Prometheus metrics
+  scope "/" do
+    pipe_through :api
+
+    get "/metrics", SentinelCpWeb.PromExPlug, prom_ex_module: SentinelCp.PromEx
+  end
+
   # Auth routes (no login required)
   scope "/", SentinelCpWeb do
     pipe_through [:browser, :redirect_if_user_is_authenticated]
@@ -94,6 +109,13 @@ defmodule SentinelCpWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     live "/audit", AuditLive.Index, :index
+  end
+
+  # Webhook endpoints (verified by signature, not API key)
+  scope "/api/v1/webhooks", SentinelCpWeb.Api do
+    pipe_through :api
+
+    post "/github", WebhookController, :github
   end
 
   # Node-facing API (called by Sentinel nodes)

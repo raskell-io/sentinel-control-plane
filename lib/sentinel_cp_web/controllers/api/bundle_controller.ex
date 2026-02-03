@@ -228,6 +228,10 @@ defmodule SentinelCpWeb.Api.BundleController do
       compiler_output: bundle.compiler_output,
       signed: not is_nil(bundle.signature),
       signing_key_id: bundle.signing_key_id,
+      source_type: bundle.source_type,
+      source_ref: bundle.source_ref,
+      source_branch: bundle.source_branch,
+      source_repo: bundle.source_repo,
       inserted_at: bundle.inserted_at,
       updated_at: bundle.updated_at
     }

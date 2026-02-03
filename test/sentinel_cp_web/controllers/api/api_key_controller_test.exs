@@ -113,7 +113,11 @@ defmodule SentinelCpWeb.Api.ApiKeyControllerTest do
 
       # Authenticate with a key that only has bundles:read
       {conn, _api_key} =
-        authenticate_api(Phoenix.ConnTest.build_conn(), user: user, project: project, scopes: ["bundles:read"])
+        authenticate_api(Phoenix.ConnTest.build_conn(),
+          user: user,
+          project: project,
+          scopes: ["bundles:read"]
+        )
 
       conn = get(conn, "/api/v1/api-keys")
       assert json_response(conn, 403)["error"] =~ "Insufficient scope"

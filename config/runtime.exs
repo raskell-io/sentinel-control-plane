@@ -42,6 +42,11 @@ if sentinel_binary = System.get_env("SENTINEL_BINARY") do
   config :sentinel_cp, SentinelCp.Bundles.Compiler, sentinel_binary: sentinel_binary
 end
 
+# GitHub webhook secret
+if webhook_secret = System.get_env("GITHUB_WEBHOOK_SECRET") do
+  config :sentinel_cp, :github_webhook, secret: webhook_secret
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

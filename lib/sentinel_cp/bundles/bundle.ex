@@ -10,6 +10,7 @@ defmodule SentinelCp.Bundles.Bundle do
 
   @statuses ~w(pending compiling compiled failed superseded)
   @risk_levels ~w(low medium high)
+  @source_types ~w(api git)
 
   schema "bundles" do
     field :version, :string
@@ -24,6 +25,10 @@ defmodule SentinelCp.Bundles.Bundle do
     field :signature, :binary
     field :signing_key_id, :string
     field :created_by_id, :binary_id
+    field :source_type, :string, default: "api"
+    field :source_ref, :string
+    field :source_branch, :string
+    field :source_repo, :string
 
     belongs_to :project, SentinelCp.Projects.Project
 
@@ -32,10 +37,21 @@ defmodule SentinelCp.Bundles.Bundle do
 
   def create_changeset(bundle, attrs) do
     bundle
-    |> cast(attrs, [:version, :config_source, :project_id, :created_by_id, :risk_level])
+    |> cast(attrs, [
+      :version,
+      :config_source,
+      :project_id,
+      :created_by_id,
+      :risk_level,
+      :source_type,
+      :source_ref,
+      :source_branch,
+      :source_repo
+    ])
     |> validate_required([:version, :config_source, :project_id])
     |> validate_length(:version, min: 1, max: 100)
     |> validate_inclusion(:risk_level, @risk_levels)
+    |> validate_inclusion(:source_type, @source_types)
     |> put_change(:status, "pending")
     |> unique_constraint([:project_id, :version])
     |> foreign_key_constraint(:project_id)
@@ -43,7 +59,16 @@ defmodule SentinelCp.Bundles.Bundle do
 
   def compilation_changeset(bundle, attrs) do
     bundle
-    |> cast(attrs, [:status, :checksum, :size_bytes, :storage_key, :manifest, :compiler_output, :signature, :signing_key_id])
+    |> cast(attrs, [
+      :status,
+      :checksum,
+      :size_bytes,
+      :storage_key,
+      :manifest,
+      :compiler_output,
+      :signature,
+      :signing_key_id
+    ])
     |> validate_required([:status])
     |> validate_inclusion(:status, @statuses)
   end

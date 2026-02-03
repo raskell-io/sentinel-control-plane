@@ -79,6 +79,10 @@ defmodule SentinelCp.MixProject do
       {:argon2_elixir, "~> 4.1"},
       {:plug_crypto, "~> 2.1"},
 
+      # Observability
+      {:prom_ex, "~> 1.11"},
+      {:logger_json, "~> 7.0"},
+
       # Utilities
       {:typed_struct, "~> 0.3"},
       {:nimble_options, "~> 1.1"},

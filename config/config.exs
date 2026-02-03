@@ -81,6 +81,11 @@ config :sentinel_cp, :bundle_signing,
   private_key_path: nil,
   public_key_path: nil
 
+# GitHub webhook configuration
+config :sentinel_cp, :github_webhook,
+  secret: nil,
+  default_branch: "main"
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

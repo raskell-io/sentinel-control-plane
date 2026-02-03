@@ -26,13 +26,14 @@ defmodule SentinelCpWeb.AuditLive.Index do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    filters = %{
-      action: params["action"],
-      resource_type: params["resource_type"],
-      actor_type: params["actor_type"]
-    }
-    |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
-    |> Map.new()
+    filters =
+      %{
+        action: params["action"],
+        resource_type: params["resource_type"],
+        actor_type: params["actor_type"]
+      }
+      |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
+      |> Map.new()
 
     page = parse_page(params["page"])
 
@@ -86,14 +87,14 @@ defmodule SentinelCpWeb.AuditLive.Index do
         <select name="action" class="border rounded px-3 py-2 text-sm">
           <option value="">All actions</option>
           <%= for action <- @available_actions do %>
-            <option value={action} selected={@filters[:action] == action}><%= action %></option>
+            <option value={action} selected={@filters[:action] == action}>{action}</option>
           <% end %>
         </select>
 
         <select name="resource_type" class="border rounded px-3 py-2 text-sm">
           <option value="">All resources</option>
           <%= for type <- @available_resource_types do %>
-            <option value={type} selected={@filters[:resource_type] == type}><%= type %></option>
+            <option value={type} selected={@filters[:resource_type] == type}>{type}</option>
           <% end %>
         </select>
 
@@ -113,8 +114,12 @@ defmodule SentinelCpWeb.AuditLive.Index do
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actor</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Resource</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Resource ID</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Resource
+              </th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Resource ID
+              </th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
             </tr>
           </thead>
@@ -122,40 +127,48 @@ defmodule SentinelCpWeb.AuditLive.Index do
             <%= for log <- @logs do %>
               <tr class="hover:bg-gray-50">
                 <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                  <%= Calendar.strftime(log.inserted_at, "%Y-%m-%d %H:%M:%S") %>
+                  {Calendar.strftime(log.inserted_at, "%Y-%m-%d %H:%M:%S")}
                 </td>
                 <td class="px-4 py-3 text-sm font-medium">
                   <span class={"px-2 py-1 rounded text-xs #{action_color(log.action)}"}>
-                    <%= log.action %>
+                    {log.action}
                   </span>
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-500">
-                  <span class="text-xs text-gray-400"><%= log.actor_type %></span>
+                  <span class="text-xs text-gray-400">{log.actor_type}</span>
                   <br />
-                  <span class="text-xs font-mono"><%= short_id(log.actor_id) %></span>
+                  <span class="text-xs font-mono">{short_id(log.actor_id)}</span>
                 </td>
-                <td class="px-4 py-3 text-sm text-gray-500"><%= log.resource_type %></td>
-                <td class="px-4 py-3 text-sm text-gray-500 font-mono"><%= short_id(log.resource_id) %></td>
-                <td class="px-4 py-3 text-sm text-gray-500 font-mono"><%= short_id(log.project_id) %></td>
+                <td class="px-4 py-3 text-sm text-gray-500">{log.resource_type}</td>
+                <td class="px-4 py-3 text-sm text-gray-500 font-mono">{short_id(log.resource_id)}</td>
+                <td class="px-4 py-3 text-sm text-gray-500 font-mono">{short_id(log.project_id)}</td>
               </tr>
             <% end %>
           </tbody>
         </table>
       </div>
-
-      <!-- Pagination -->
+      
+    <!-- Pagination -->
       <div class="mt-4 flex items-center justify-between">
         <p class="text-sm text-gray-500">
-          Showing <%= @page * @per_page + 1 %>-<%= min((@page + 1) * @per_page, @total) %> of <%= @total %>
+          Showing {@page * @per_page + 1}-{min((@page + 1) * @per_page, @total)} of {@total}
         </p>
         <div class="flex gap-2">
           <%= if @page > 0 do %>
-            <button phx-click="page" phx-value-page={@page - 1} class="px-3 py-1 border rounded text-sm hover:bg-gray-50">
+            <button
+              phx-click="page"
+              phx-value-page={@page - 1}
+              class="px-3 py-1 border rounded text-sm hover:bg-gray-50"
+            >
               Previous
             </button>
           <% end %>
           <%= if (@page + 1) * @per_page < @total do %>
-            <button phx-click="page" phx-value-page={@page + 1} class="px-3 py-1 border rounded text-sm hover:bg-gray-50">
+            <button
+              phx-click="page"
+              phx-value-page={@page + 1}
+              class="px-3 py-1 border rounded text-sm hover:bg-gray-50"
+            >
               Next
             </button>
           <% end %>
@@ -197,6 +210,7 @@ defmodule SentinelCpWeb.AuditLive.Index do
   end
 
   defp parse_page(nil), do: 0
+
   defp parse_page(page) when is_binary(page) do
     case Integer.parse(page) do
       {n, _} when n >= 0 -> n

@@ -13,6 +13,9 @@ defmodule SentinelCp.Projects.Project do
     field :slug, :string
     field :description, :string
     field :settings, :map, default: %{}
+    field :github_repo, :string
+    field :github_branch, :string, default: "main"
+    field :config_path, :string, default: "sentinel.kdl"
 
     has_many :nodes, SentinelCp.Nodes.Node
     has_many :api_keys, SentinelCp.Accounts.ApiKey
@@ -25,7 +28,7 @@ defmodule SentinelCp.Projects.Project do
   """
   def create_changeset(project, attrs) do
     project
-    |> cast(attrs, [:name, :description, :settings])
+    |> cast(attrs, [:name, :description, :settings, :github_repo, :github_branch, :config_path])
     |> validate_required([:name])
     |> validate_length(:name, min: 1, max: 100)
     |> generate_slug()
@@ -38,7 +41,7 @@ defmodule SentinelCp.Projects.Project do
   """
   def update_changeset(project, attrs) do
     project
-    |> cast(attrs, [:name, :description, :settings])
+    |> cast(attrs, [:name, :description, :settings, :github_repo, :github_branch, :config_path])
     |> validate_required([:name])
     |> validate_length(:name, min: 1, max: 100)
   end

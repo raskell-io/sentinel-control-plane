@@ -36,7 +36,10 @@ defmodule SentinelCpWeb.Plugs.RequireScope do
       {:error, :forbidden} ->
         conn
         |> put_resp_content_type("application/json")
-        |> send_resp(403, Jason.encode!(%{error: "Insufficient scope. Required: #{required_scope}"}))
+        |> send_resp(
+          403,
+          Jason.encode!(%{error: "Insufficient scope. Required: #{required_scope}"})
+        )
         |> halt()
 
       {:error, :project_not_found} ->

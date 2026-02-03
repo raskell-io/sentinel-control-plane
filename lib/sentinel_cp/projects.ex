@@ -32,6 +32,13 @@ defmodule SentinelCp.Projects do
   end
 
   @doc """
+  Gets a single project by GitHub repository name (e.g. "owner/repo").
+  """
+  def get_project_by_github_repo(repo) when is_binary(repo) do
+    Repo.get_by(Project, github_repo: repo)
+  end
+
+  @doc """
   Creates a project.
   """
   def create_project(attrs \\ %{}) do
