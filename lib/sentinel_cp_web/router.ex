@@ -95,13 +95,34 @@ defmodule SentinelCpWeb.Router do
 
     get "/", PageController, :home
 
+    # Org management
+    live "/orgs", OrgsLive.Index, :index
+    live "/orgs/:org_slug", OrgsLive.Show, :show
+
+    # Legacy routes (redirect to org-scoped)
     live "/projects", ProjectsLive.Index, :index
     live "/projects/:project_slug/nodes", NodesLive.Index, :index
     live "/projects/:project_slug/nodes/:id", NodesLive.Show, :show
     live "/projects/:project_slug/bundles", BundlesLive.Index, :index
+    live "/projects/:project_slug/bundles/new", BundlesLive.New, :new
+    live "/projects/:project_slug/bundles/diff", BundlesLive.Diff, :diff
     live "/projects/:project_slug/bundles/:id", BundlesLive.Show, :show
     live "/projects/:project_slug/rollouts", RolloutsLive.Index, :index
     live "/projects/:project_slug/rollouts/:id", RolloutsLive.Show, :show
+
+    # Org-scoped dashboard
+    live "/orgs/:org_slug/dashboard", DashboardLive.Index, :index
+
+    # Org-scoped project routes
+    live "/orgs/:org_slug/projects", ProjectsLive.Index, :index
+    live "/orgs/:org_slug/projects/:project_slug/nodes", NodesLive.Index, :index
+    live "/orgs/:org_slug/projects/:project_slug/nodes/:id", NodesLive.Show, :show
+    live "/orgs/:org_slug/projects/:project_slug/bundles", BundlesLive.Index, :index
+    live "/orgs/:org_slug/projects/:project_slug/bundles/new", BundlesLive.New, :new
+    live "/orgs/:org_slug/projects/:project_slug/bundles/diff", BundlesLive.Diff, :diff
+    live "/orgs/:org_slug/projects/:project_slug/bundles/:id", BundlesLive.Show, :show
+    live "/orgs/:org_slug/projects/:project_slug/rollouts", RolloutsLive.Index, :index
+    live "/orgs/:org_slug/projects/:project_slug/rollouts/:id", RolloutsLive.Show, :show
   end
 
   # Admin-only browser routes
@@ -132,6 +153,7 @@ defmodule SentinelCpWeb.Router do
 
     post "/:node_id/heartbeat", NodeController, :heartbeat
     get "/:node_id/bundles/latest", NodeController, :latest_bundle
+    post "/:node_id/token", NodeController, :token
   end
 
   # Control plane API — Nodes (read)
@@ -163,6 +185,7 @@ defmodule SentinelCpWeb.Router do
       get "/bundles/:id", BundleController, :show
       get "/bundles/:id/download", BundleController, :download
       get "/bundles/:id/verify", BundleController, :verify
+      get "/bundles/:id/sbom", SbomController, :show
     end
   end
 

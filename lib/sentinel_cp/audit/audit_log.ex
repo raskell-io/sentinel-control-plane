@@ -12,6 +12,7 @@ defmodule SentinelCp.Audit.AuditLog do
 
   schema "audit_logs" do
     field :project_id, :binary_id
+    field :org_id, :binary_id
     field :actor_type, :string
     field :actor_id, :binary_id
     field :action, :string
@@ -30,6 +31,7 @@ defmodule SentinelCp.Audit.AuditLog do
     audit_log
     |> cast(attrs, [
       :project_id,
+      :org_id,
       :actor_type,
       :actor_id,
       :action,

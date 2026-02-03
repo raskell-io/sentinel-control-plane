@@ -91,6 +91,15 @@ defmodule SentinelCp.Bundles do
   end
 
   @doc """
+  Updates a bundle's SBOM data.
+  """
+  def update_bundle_sbom(bundle, sbom) do
+    bundle
+    |> Bundle.compilation_changeset(%{sbom: sbom, sbom_format: "cyclonedx+json"})
+    |> Repo.update()
+  end
+
+  @doc """
   Assigns a bundle to one or more nodes as their staged bundle.
   """
   def assign_bundle_to_nodes(bundle, node_ids) when is_list(node_ids) do

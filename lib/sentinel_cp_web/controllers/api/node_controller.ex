@@ -5,7 +5,7 @@ defmodule SentinelCpWeb.Api.NodeController do
   """
   use SentinelCpWeb, :controller
 
-  alias SentinelCp.{Nodes, Projects, Audit}
+  alias SentinelCp.{Auth, Nodes, Projects, Audit}
 
   @doc """
   POST /api/v1/projects/:project_slug/nodes/register
@@ -119,6 +119,43 @@ defmodule SentinelCpWeb.Api.NodeController do
         conn
         |> put_status(:ok)
         |> json(%{no_update: true, poll_after_s: 30})
+    end
+  end
+
+  @doc """
+  POST /api/v1/nodes/:node_id/token
+
+  Exchanges a node's static key for a JWT token.
+  Requires node authentication (via static key or existing JWT).
+  """
+  def token(conn, _params) do
+    node = conn.assigns.current_node
+
+    case Auth.issue_node_token(node) do
+      {:ok, token, expires_at} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          token: token,
+          token_type: "Bearer",
+          expires_at: DateTime.to_iso8601(expires_at),
+          expires_in: DateTime.diff(expires_at, DateTime.utc_now(), :second)
+        })
+
+      {:error, :no_signing_key} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> json(%{error: "No signing key configured for this organization. Contact your administrator."})
+
+      {:error, :no_org} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Node's project is not assigned to an organization."})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{error: "Failed to issue token: #{inspect(reason)}"})
     end
   end
 

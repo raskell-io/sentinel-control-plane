@@ -1,12 +1,14 @@
 defmodule SentinelCpWeb.RolloutsLive.Show do
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.{Rollouts, Projects, Nodes}
+  alias SentinelCp.{Rollouts, Orgs, Projects, Nodes}
 
   @refresh_interval 5_000
 
   @impl true
-  def mount(%{"project_slug" => slug, "id" => rollout_id}, _session, socket) do
+  def mount(%{"project_slug" => slug, "id" => rollout_id} = params, _session, socket) do
+    org = resolve_org(params)
+
     with project when not is_nil(project) <- Projects.get_project_by_slug(slug),
          rollout when not is_nil(rollout) <- Rollouts.get_rollout_with_details(rollout_id),
          true <- rollout.project_id == project.id do
@@ -21,6 +23,7 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
       {:ok,
        assign(socket,
          page_title: "Rollout — #{project.name}",
+         org: org,
          project: project,
          rollout: rollout,
          progress: progress,
@@ -28,9 +31,12 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
        )}
     else
       _ ->
-        {:ok, push_navigate(socket, to: ~p"/projects")}
+        {:ok, push_navigate(socket, to: ~p"/orgs")}
     end
   end
+
+  defp resolve_org(%{"org_slug" => slug}), do: Orgs.get_org_by_slug(slug)
+  defp resolve_org(_), do: nil
 
   @impl true
   def handle_event("pause", _, socket) do
@@ -134,8 +140,10 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
       <div class="text-sm breadcrumbs mb-4">
         <ul>
           <li><.link navigate={~p"/projects"}>Projects</.link></li>
-          <li><.link navigate={~p"/projects/#{@project.slug}/nodes"}>{@project.name}</.link></li>
-          <li><.link navigate={~p"/projects/#{@project.slug}/rollouts"}>Rollouts</.link></li>
+          <li><.link navigate={~p"/orgs"}>Organizations</.link></li>
+          <li :if={@org}><.link navigate={~p"/orgs/#{@org.slug}/projects"}>{@org.name}</.link></li>
+          <li><.link navigate={project_nodes_path(@org, @project)}>{@project.name}</.link></li>
+          <li><.link navigate={project_rollouts_path(@org, @project)}>Rollouts</.link></li>
           <li>{String.slice(@rollout.id, 0, 8)}</li>
         </ul>
       </div>
@@ -324,7 +332,7 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
                 <tr :for={nbs <- @rollout.node_bundle_statuses}>
                   <td>
                     <.link
-                      navigate={~p"/projects/#{@project.slug}/nodes/#{nbs.node_id}"}
+                      navigate={node_show_path(@org, @project, nbs.node_id)}
                       class="link link-primary"
                     >
                       {Map.get(@node_names, nbs.node_id, nbs.node_id |> String.slice(0, 8))}
@@ -361,6 +369,24 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
     </div>
     """
   end
+
+  defp project_nodes_path(%{slug: org_slug}, project),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/nodes"
+
+  defp project_nodes_path(nil, project),
+    do: ~p"/projects/#{project.slug}/nodes"
+
+  defp project_rollouts_path(%{slug: org_slug}, project),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/rollouts"
+
+  defp project_rollouts_path(nil, project),
+    do: ~p"/projects/#{project.slug}/rollouts"
+
+  defp node_show_path(%{slug: org_slug}, project, node_id),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/nodes/#{node_id}"
+
+  defp node_show_path(nil, project, node_id),
+    do: ~p"/projects/#{project.slug}/nodes/#{node_id}"
 
   defp format_target(%{"type" => "all"}), do: "All nodes"
 

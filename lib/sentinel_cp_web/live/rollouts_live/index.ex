@@ -1,13 +1,15 @@
 defmodule SentinelCpWeb.RolloutsLive.Index do
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.{Rollouts, Bundles, Projects}
+  alias SentinelCp.{Rollouts, Bundles, Orgs, Projects}
 
   @impl true
-  def mount(%{"project_slug" => slug}, _session, socket) do
+  def mount(%{"project_slug" => slug} = params, _session, socket) do
+    org = resolve_org(params)
+
     case Projects.get_project_by_slug(slug) do
       nil ->
-        {:ok, push_navigate(socket, to: ~p"/projects")}
+        {:ok, push_navigate(socket, to: ~p"/orgs")}
 
       project ->
         if connected?(socket) do
@@ -20,6 +22,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
         {:ok,
          assign(socket,
            page_title: "Rollouts — #{project.name}",
+           org: org,
            project: project,
            rollouts: rollouts,
            compiled_bundles: compiled_bundles,
@@ -108,8 +111,9 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
         <div>
           <div class="text-sm breadcrumbs mb-2">
             <ul>
-              <li><.link navigate={~p"/projects"}>Projects</.link></li>
-              <li><.link navigate={~p"/projects/#{@project.slug}/nodes"}>{@project.name}</.link></li>
+              <li><.link navigate={~p"/orgs"}>Organizations</.link></li>
+              <li :if={@org}><.link navigate={~p"/orgs/#{@org.slug}/projects"}>{@org.name}</.link></li>
+              <li><.link navigate={project_nodes_path(@org, @project)}>{@project.name}</.link></li>
               <li>Rollouts</li>
             </ul>
           </div>
@@ -233,7 +237,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
               </td>
               <td>
                 <.link
-                  navigate={~p"/projects/#{@project.slug}/rollouts/#{rollout.id}"}
+                  navigate={{rollout_show_path(@org, @project, rollout)}}
                   class="btn btn-ghost btn-xs"
                 >
                   Details
@@ -250,6 +254,21 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
     </div>
     """
   end
+
+  defp resolve_org(%{"org_slug" => slug}), do: Orgs.get_org_by_slug(slug)
+  defp resolve_org(_), do: nil
+
+  defp project_nodes_path(%{slug: org_slug}, project),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/nodes"
+
+  defp project_nodes_path(nil, project),
+    do: ~p"/projects/#{project.slug}/nodes"
+
+  defp rollout_show_path(%{slug: org_slug}, project, rollout),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/rollouts/#{rollout.id}"
+
+  defp rollout_show_path(nil, project, rollout),
+    do: ~p"/projects/#{project.slug}/rollouts/#{rollout.id}"
 
   defp format_target(%{"type" => "all"}), do: "All nodes"
 

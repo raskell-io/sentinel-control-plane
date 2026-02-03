@@ -1,10 +1,12 @@
 defmodule SentinelCpWeb.BundlesLive.Show do
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.{Bundles, Projects, Nodes}
+  alias SentinelCp.{Bundles, Orgs, Projects, Nodes}
 
   @impl true
-  def mount(%{"project_slug" => slug, "id" => bundle_id}, _session, socket) do
+  def mount(%{"project_slug" => slug, "id" => bundle_id} = params, _session, socket) do
+    org = resolve_org(params)
+
     with project when not is_nil(project) <- Projects.get_project_by_slug(slug),
          bundle when not is_nil(bundle) <- Bundles.get_bundle(bundle_id),
          true <- bundle.project_id == project.id do
@@ -17,15 +19,19 @@ defmodule SentinelCpWeb.BundlesLive.Show do
       {:ok,
        assign(socket,
          page_title: "Bundle #{bundle.version} — #{project.name}",
+         org: org,
          project: project,
          bundle: bundle,
          assigned_nodes: assigned_nodes
        )}
     else
       _ ->
-        {:ok, push_navigate(socket, to: ~p"/projects")}
+        {:ok, push_navigate(socket, to: ~p"/orgs")}
     end
   end
+
+  defp resolve_org(%{"org_slug" => slug}), do: Orgs.get_org_by_slug(slug)
+  defp resolve_org(_), do: nil
 
   @impl true
   def handle_info({:bundle_compiled, bundle_id}, socket) do
@@ -53,9 +59,10 @@ defmodule SentinelCpWeb.BundlesLive.Show do
     <div class="container mx-auto px-4 py-8">
       <div class="text-sm breadcrumbs mb-4">
         <ul>
-          <li><.link navigate={~p"/projects"}>Projects</.link></li>
-          <li><.link navigate={~p"/projects/#{@project.slug}/nodes"}>{@project.name}</.link></li>
-          <li><.link navigate={~p"/projects/#{@project.slug}/bundles"}>Bundles</.link></li>
+          <li><.link navigate={~p"/orgs"}>Organizations</.link></li>
+          <li :if={@org}><.link navigate={~p"/orgs/#{@org.slug}/projects"}>{@org.name}</.link></li>
+          <li><.link navigate={project_nodes_path(@org, @project)}>{@project.name}</.link></li>
+          <li><.link navigate={project_bundles_path(@org, @project)}>Bundles</.link></li>
           <li>{@bundle.version}</li>
         </ul>
       </div>
@@ -71,6 +78,14 @@ defmodule SentinelCpWeb.BundlesLive.Show do
         ]}>
           {@bundle.status}
         </span>
+        <a
+          :if={@bundle.status == "compiled"}
+          href={"/api/v1/projects/#{@project.slug}/bundles/#{@bundle.id}/sbom"}
+          class="btn btn-outline btn-sm"
+          target="_blank"
+        >
+          Download SBOM
+        </a>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -133,7 +148,7 @@ defmodule SentinelCpWeb.BundlesLive.Show do
                 <tr :for={node <- @assigned_nodes}>
                   <td>
                     <.link
-                      navigate={~p"/projects/#{@project.slug}/nodes/#{node.id}"}
+                      navigate={node_show_path(@org, @project, node)}
                       class="link link-primary"
                     >
                       {node.name}
@@ -182,6 +197,24 @@ defmodule SentinelCpWeb.BundlesLive.Show do
     </div>
     """
   end
+
+  defp project_nodes_path(%{slug: org_slug}, project),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/nodes"
+
+  defp project_nodes_path(nil, project),
+    do: ~p"/projects/#{project.slug}/nodes"
+
+  defp project_bundles_path(%{slug: org_slug}, project),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/bundles"
+
+  defp project_bundles_path(nil, project),
+    do: ~p"/projects/#{project.slug}/bundles"
+
+  defp node_show_path(%{slug: org_slug}, project, node),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/nodes/#{node.id}"
+
+  defp node_show_path(nil, project, node),
+    do: ~p"/projects/#{project.slug}/nodes/#{node.id}"
 
   defp get_assigned_nodes(bundle, project_id) do
     Nodes.list_nodes(project_id)

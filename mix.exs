@@ -78,6 +78,7 @@ defmodule SentinelCp.MixProject do
       # Security
       {:argon2_elixir, "~> 4.1"},
       {:plug_crypto, "~> 2.1"},
+      {:jose, "~> 1.11"},
 
       # Observability
       {:prom_ex, "~> 1.11"},

@@ -4,19 +4,19 @@ defmodule SentinelCpWeb.NodesLive.Index do
   """
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.{Nodes, Projects}
+  alias SentinelCp.{Nodes, Orgs, Projects}
 
   @impl true
-  def mount(%{"project_slug" => project_slug}, _session, socket) do
+  def mount(%{"project_slug" => project_slug} = params, _session, socket) do
+    org = resolve_org(params)
+
     case Projects.get_project_by_slug(project_slug) do
       nil ->
         {:ok, socket |> put_flash(:error, "Project not found") |> redirect(to: ~p"/")}
 
       project ->
         if connected?(socket) do
-          # Subscribe to node updates
           Phoenix.PubSub.subscribe(SentinelCp.PubSub, "nodes:#{project.id}")
-          # Refresh every 10 seconds
           :timer.send_interval(10_000, self(), :refresh)
         end
 
@@ -25,6 +25,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
         {:ok,
          socket
+         |> assign(:org, org)
          |> assign(:project, project)
          |> assign(:nodes, nodes)
          |> assign(:stats, stats)
@@ -32,6 +33,9 @@ defmodule SentinelCpWeb.NodesLive.Index do
          |> assign(:page_title, "Nodes - #{project.name}")}
     end
   end
+
+  defp resolve_org(%{"org_slug" => slug}), do: Orgs.get_org_by_slug(slug)
+  defp resolve_org(_), do: nil
 
   @impl true
   def handle_params(params, _url, socket) do
@@ -45,7 +49,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
     {:noreply,
      push_patch(socket,
-       to: ~p"/projects/#{socket.assigns.project.slug}/nodes?#{[status: status]}"
+       to: node_path(socket.assigns.org, socket.assigns.project, status: status)
      )}
   end
 
@@ -134,7 +138,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
               <tr class="hover">
                 <td>
                   <.link
-                    navigate={~p"/projects/#{@project.slug}/nodes/#{node.id}"}
+                    navigate={{node_show_path(@org, @project, node)}}
                     class="font-medium text-primary hover:underline"
                   >
                     {node.name}
@@ -208,6 +212,22 @@ defmodule SentinelCpWeb.NodesLive.Index do
     ~H"""
     <span class={"badge #{@class}"}>{@text}</span>
     """
+  end
+
+  defp node_path(%{slug: org_slug}, project, query) do
+    ~p"/orgs/#{org_slug}/projects/#{project.slug}/nodes?#{query}"
+  end
+
+  defp node_path(nil, project, query) do
+    ~p"/projects/#{project.slug}/nodes?#{query}"
+  end
+
+  defp node_show_path(%{slug: org_slug}, project, node) do
+    ~p"/orgs/#{org_slug}/projects/#{project.slug}/nodes/#{node.id}"
+  end
+
+  defp node_show_path(nil, project, node) do
+    ~p"/projects/#{project.slug}/nodes/#{node.id}"
   end
 
   defp format_relative_time(datetime) do

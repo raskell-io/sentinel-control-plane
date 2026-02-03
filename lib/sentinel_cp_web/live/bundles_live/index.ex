@@ -1,13 +1,15 @@
 defmodule SentinelCpWeb.BundlesLive.Index do
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.{Bundles, Projects}
+  alias SentinelCp.{Bundles, Orgs, Projects}
 
   @impl true
-  def mount(%{"project_slug" => slug}, _session, socket) do
+  def mount(%{"project_slug" => slug} = params, _session, socket) do
+    org = resolve_org(params)
+
     case Projects.get_project_by_slug(slug) do
       nil ->
-        {:ok, push_navigate(socket, to: ~p"/projects")}
+        {:ok, push_navigate(socket, to: ~p"/orgs")}
 
       project ->
         if connected?(socket) do
@@ -19,6 +21,7 @@ defmodule SentinelCpWeb.BundlesLive.Index do
         {:ok,
          assign(socket,
            page_title: "Bundles — #{project.name}",
+           org: org,
            project: project,
            bundles: bundles,
            show_upload: false
@@ -81,8 +84,9 @@ defmodule SentinelCpWeb.BundlesLive.Index do
         <div>
           <div class="text-sm breadcrumbs mb-2">
             <ul>
-              <li><.link navigate={~p"/projects"}>Projects</.link></li>
-              <li><.link navigate={~p"/projects/#{@project.slug}/nodes"}>{@project.name}</.link></li>
+              <li><.link navigate={~p"/orgs"}>Organizations</.link></li>
+              <li :if={@org}><.link navigate={~p"/orgs/#{@org.slug}/projects"}>{@org.name}</.link></li>
+              <li><.link navigate={project_nodes_path(@org, @project)}>{@project.name}</.link></li>
               <li>Bundles</li>
             </ul>
           </div>
@@ -162,7 +166,7 @@ defmodule SentinelCpWeb.BundlesLive.Index do
               <td class="text-sm">{Calendar.strftime(bundle.inserted_at, "%Y-%m-%d %H:%M")}</td>
               <td>
                 <.link
-                  navigate={~p"/projects/#{@project.slug}/bundles/#{bundle.id}"}
+                  navigate={{bundle_show_path(@org, @project, bundle)}}
                   class="btn btn-ghost btn-xs"
                 >
                   Details
@@ -179,6 +183,21 @@ defmodule SentinelCpWeb.BundlesLive.Index do
     </div>
     """
   end
+
+  defp resolve_org(%{"org_slug" => slug}), do: Orgs.get_org_by_slug(slug)
+  defp resolve_org(_), do: nil
+
+  defp project_nodes_path(%{slug: org_slug}, project),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/nodes"
+
+  defp project_nodes_path(nil, project),
+    do: ~p"/projects/#{project.slug}/nodes"
+
+  defp bundle_show_path(%{slug: org_slug}, project, bundle),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/bundles/#{bundle.id}"
+
+  defp bundle_show_path(nil, project, bundle),
+    do: ~p"/projects/#{project.slug}/bundles/#{bundle.id}"
 
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 1)} KB"

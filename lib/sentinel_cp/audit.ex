@@ -39,6 +39,7 @@ defmodule SentinelCp.Audit do
       resource_type: resource_type,
       resource_id: resource_id,
       project_id: opts[:project_id],
+      org_id: opts[:org_id],
       changes: opts[:changes] || %{},
       metadata: opts[:metadata] || %{}
     })
@@ -55,6 +56,7 @@ defmodule SentinelCp.Audit do
       resource_type: resource_type,
       resource_id: resource_id,
       project_id: api_key.project_id || opts[:project_id],
+      org_id: opts[:org_id],
       changes: opts[:changes] || %{},
       metadata: opts[:metadata] || %{}
     })
@@ -71,6 +73,7 @@ defmodule SentinelCp.Audit do
       resource_type: resource_type,
       resource_id: resource_id,
       project_id: node.project_id,
+      org_id: opts[:org_id],
       changes: opts[:changes] || %{},
       metadata: opts[:metadata] || %{}
     })
@@ -87,6 +90,7 @@ defmodule SentinelCp.Audit do
       resource_type: resource_type,
       resource_id: resource_id,
       project_id: opts[:project_id],
+      org_id: opts[:org_id],
       changes: opts[:changes] || %{},
       metadata: opts[:metadata] || %{}
     })

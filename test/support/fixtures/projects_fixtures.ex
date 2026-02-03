@@ -6,9 +6,12 @@ defmodule SentinelCp.ProjectsFixtures do
   def unique_project_name, do: "project-#{System.unique_integer([:positive])}"
 
   def valid_project_attributes(attrs \\ %{}) do
+    org = attrs[:org] || SentinelCp.OrgsFixtures.org_fixture()
+
     Enum.into(attrs, %{
       name: unique_project_name(),
-      description: "A test project"
+      description: "A test project",
+      org_id: org.id
     })
   end
 

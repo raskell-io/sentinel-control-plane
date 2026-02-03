@@ -8,10 +8,18 @@ defmodule SentinelCp.Projects do
   alias SentinelCp.Projects.Project
 
   @doc """
-  Returns the list of projects.
+  Returns the list of projects, optionally scoped to an org.
   """
-  def list_projects do
-    Repo.all(from p in Project, order_by: [asc: p.name])
+  def list_projects(opts \\ []) do
+    query = from(p in Project, order_by: [asc: p.name])
+
+    query =
+      case Keyword.get(opts, :org_id) do
+        nil -> query
+        org_id -> where(query, [p], p.org_id == ^org_id)
+      end
+
+    Repo.all(query)
   end
 
   @doc """

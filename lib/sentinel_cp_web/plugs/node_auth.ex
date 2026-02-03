@@ -1,38 +1,66 @@
 defmodule SentinelCpWeb.Plugs.NodeAuth do
   @moduledoc """
-  Plug for authenticating Sentinel nodes via node key.
+  Plug for authenticating Sentinel nodes.
 
-  Nodes authenticate using the X-Sentinel-Node-Key header.
+  Supports two authentication methods:
+  1. JWT Bearer token (preferred) — `Authorization: Bearer <token>`
+  2. Static node key (legacy fallback) — `X-Sentinel-Node-Key: <key>`
   """
   import Plug.Conn
-  alias SentinelCp.Nodes
+  alias SentinelCp.{Auth, Nodes}
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    with {:ok, node_key} <- get_node_key(conn),
-         {:ok, node} <- Nodes.authenticate_node(node_key) do
-      conn
-      |> assign(:current_node, node)
-    else
-      {:error, :missing_key} ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(401, Jason.encode!(%{error: "Missing X-Sentinel-Node-Key header"}))
-        |> halt()
+    case authenticate(conn) do
+      {:ok, node} ->
+        assign(conn, :current_node, node)
 
-      {:error, :invalid_key} ->
+      {:error, reason} ->
+        message = error_message(reason)
+
         conn
         |> put_resp_content_type("application/json")
-        |> send_resp(401, Jason.encode!(%{error: "Invalid node key"}))
+        |> send_resp(401, Jason.encode!(%{error: message}))
         |> halt()
+    end
+  end
+
+  defp authenticate(conn) do
+    case get_bearer_token(conn) do
+      {:ok, token} ->
+        Auth.verify_node_token(token)
+
+      :none ->
+        case get_node_key(conn) do
+          {:ok, key} -> Nodes.authenticate_node(key)
+          :none -> {:error, :missing_credentials}
+        end
+    end
+  end
+
+  defp get_bearer_token(conn) do
+    case get_req_header(conn, "authorization") do
+      ["Bearer " <> token | _] -> {:ok, token}
+      _ -> :none
     end
   end
 
   defp get_node_key(conn) do
     case get_req_header(conn, "x-sentinel-node-key") do
       [key | _] -> {:ok, key}
-      [] -> {:error, :missing_key}
+      [] -> :none
     end
   end
+
+  defp error_message(:missing_credentials),
+    do: "Missing authentication. Provide Authorization: Bearer <token> or X-Sentinel-Node-Key header."
+
+  defp error_message(:invalid_key), do: "Invalid node key"
+  defp error_message(:invalid_signature), do: "Invalid token signature"
+  defp error_message(:token_expired), do: "Token expired"
+  defp error_message(:unknown_key), do: "Unknown signing key"
+  defp error_message(:key_deactivated), do: "Signing key has been deactivated"
+  defp error_message(:node_not_found), do: "Node not found"
+  defp error_message(_), do: "Authentication failed"
 end

@@ -29,6 +29,8 @@ defmodule SentinelCp.Bundles.Bundle do
     field :source_ref, :string
     field :source_branch, :string
     field :source_repo, :string
+    field :sbom, :map
+    field :sbom_format, :string
 
     belongs_to :project, SentinelCp.Projects.Project
 
@@ -67,7 +69,9 @@ defmodule SentinelCp.Bundles.Bundle do
       :manifest,
       :compiler_output,
       :signature,
-      :signing_key_id
+      :signing_key_id,
+      :sbom,
+      :sbom_format
     ])
     |> validate_required([:status])
     |> validate_inclusion(:status, @statuses)

@@ -4,10 +4,12 @@ defmodule SentinelCpWeb.NodesLive.Show do
   """
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.{Nodes, Projects}
+  alias SentinelCp.{Nodes, Orgs, Projects}
 
   @impl true
-  def mount(%{"project_slug" => project_slug, "id" => node_id}, _session, socket) do
+  def mount(%{"project_slug" => project_slug, "id" => node_id} = params, _session, socket) do
+    org = resolve_org(params)
+
     case Projects.get_project_by_slug(project_slug) do
       nil ->
         {:ok, socket |> put_flash(:error, "Project not found") |> redirect(to: ~p"/")}
@@ -18,7 +20,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
             {:ok,
              socket
              |> put_flash(:error, "Node not found")
-             |> redirect(to: ~p"/projects/#{project.slug}/nodes")}
+             |> redirect(to: nodes_path(org, project))}
 
           %{project_id: pid} = node when pid == project.id ->
             if connected?(socket) do
@@ -30,6 +32,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
 
             {:ok,
              socket
+             |> assign(:org, org)
              |> assign(:project, project)
              |> assign(:node, node)
              |> assign(:heartbeats, heartbeats)
@@ -39,10 +42,25 @@ defmodule SentinelCpWeb.NodesLive.Show do
             {:ok,
              socket
              |> put_flash(:error, "Node not found")
-             |> redirect(to: ~p"/projects/#{project.slug}/nodes")}
+             |> redirect(to: nodes_path(org, project))}
         end
     end
   end
+
+  defp resolve_org(%{"org_slug" => slug}), do: Orgs.get_org_by_slug(slug)
+  defp resolve_org(_), do: nil
+
+  defp nodes_path(%{slug: org_slug}, project),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/nodes"
+
+  defp nodes_path(nil, project),
+    do: ~p"/projects/#{project.slug}/nodes"
+
+  defp bundle_path(%{slug: org_slug}, project, bundle_id),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/bundles/#{bundle_id}"
+
+  defp bundle_path(nil, project, bundle_id),
+    do: ~p"/projects/#{project.slug}/bundles/#{bundle_id}"
 
   @impl true
   def handle_info(:refresh, socket) do
@@ -64,7 +82,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
         {:noreply,
          socket
          |> put_flash(:info, "Node deleted")
-         |> redirect(to: ~p"/projects/#{socket.assigns.project.slug}/nodes")}
+         |> redirect(to: nodes_path(socket.assigns.org, socket.assigns.project))}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to delete node")}
@@ -77,7 +95,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
     <div class="container mx-auto px-4 py-8">
       <div class="mb-6">
         <.link
-          navigate={~p"/projects/#{@project.slug}/nodes"}
+          navigate={nodes_path(@org, @project)}
           class="text-sm text-gray-500 hover:text-gray-700"
         >
           &larr; Back to nodes
@@ -142,7 +160,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
               <dd class="font-mono text-sm">
                 <%= if @node.active_bundle_id do %>
                   <.link
-                    navigate={~p"/projects/#{@project.slug}/bundles/#{@node.active_bundle_id}"}
+                    navigate={bundle_path(@org, @project, @node.active_bundle_id)}
                     class="link link-primary"
                   >
                     {String.slice(@node.active_bundle_id, 0, 8)}…
@@ -157,7 +175,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
               <dd class="font-mono text-sm">
                 <%= if @node.staged_bundle_id do %>
                   <.link
-                    navigate={~p"/projects/#{@project.slug}/bundles/#{@node.staged_bundle_id}"}
+                    navigate={bundle_path(@org, @project, @node.staged_bundle_id)}
                     class="link link-primary"
                   >
                     {String.slice(@node.staged_bundle_id, 0, 8)}…

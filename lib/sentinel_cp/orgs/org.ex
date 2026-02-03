@@ -1,6 +1,6 @@
-defmodule SentinelCp.Projects.Project do
+defmodule SentinelCp.Orgs.Org do
   @moduledoc """
-  Project schema - the primary tenant boundary.
+  Organization schema — the top-level tenant boundary.
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -8,42 +8,36 @@ defmodule SentinelCp.Projects.Project do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
-  schema "projects" do
+  schema "orgs" do
     field :name, :string
     field :slug, :string
-    field :description, :string
     field :settings, :map, default: %{}
-    field :github_repo, :string
-    field :github_branch, :string, default: "main"
-    field :config_path, :string, default: "sentinel.kdl"
 
-    belongs_to :org, SentinelCp.Orgs.Org
-    has_many :nodes, SentinelCp.Nodes.Node
-    has_many :api_keys, SentinelCp.Accounts.ApiKey
+    has_many :org_memberships, SentinelCp.Orgs.OrgMembership
+    has_many :projects, SentinelCp.Projects.Project
 
     timestamps(type: :utc_datetime)
   end
 
   @doc """
-  Changeset for creating a project.
+  Changeset for creating an org.
   """
-  def create_changeset(project, attrs) do
-    project
-    |> cast(attrs, [:name, :description, :settings, :github_repo, :github_branch, :config_path, :org_id])
-    |> validate_required([:name, :org_id])
+  def create_changeset(org, attrs) do
+    org
+    |> cast(attrs, [:name, :settings])
+    |> validate_required([:name])
     |> validate_length(:name, min: 1, max: 100)
     |> generate_slug()
     |> validate_slug()
-    |> unique_constraint([:org_id, :slug], error_key: :slug)
-    |> foreign_key_constraint(:org_id)
+    |> unique_constraint(:slug)
   end
 
   @doc """
-  Changeset for updating a project.
+  Changeset for updating an org.
   """
-  def update_changeset(project, attrs) do
-    project
-    |> cast(attrs, [:name, :description, :settings, :github_repo, :github_branch, :config_path])
+  def update_changeset(org, attrs) do
+    org
+    |> cast(attrs, [:name, :settings])
     |> validate_required([:name])
     |> validate_length(:name, min: 1, max: 100)
   end

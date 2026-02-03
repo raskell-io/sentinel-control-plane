@@ -26,6 +26,9 @@ defmodule SentinelCp.Nodes.Node do
     field :registered_at, :utc_datetime
     field :active_bundle_id, :binary_id
     field :staged_bundle_id, :binary_id
+    field :token_issued_at, :utc_datetime
+    field :token_expires_at, :utc_datetime
+    field :auth_method, :string, default: "static_key"
 
     belongs_to :project, SentinelCp.Projects.Project
     has_many :heartbeats, SentinelCp.Nodes.NodeHeartbeat
