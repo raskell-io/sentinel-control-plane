@@ -142,22 +142,22 @@ POST /api/v1/webhooks/github    # Auto-compile on push (signature verified)
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              Control Plane (Phoenix)             │
-│                                                  │
+│              Control Plane (Phoenix)            │
+│                                                 │
 │  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
-│  │ LiveView │  │ REST API │  │ GitHub Webhook │  │
+│  │ LiveView │  │ REST API │  │ GitHub Webhook│  │
 │  │    UI    │  │          │  │               │  │
-│  └────┬─────┘  └────┬─────┘  └───────┬───────┘  │
-│       │              │                │          │
-│  ┌────┴──────────────┴────────────────┴───────┐  │
-│  │           Contexts (Business Logic)         │  │
-│  │  Bundles · Nodes · Rollouts · Audit · Auth  │  │
-│  └────┬──────────────┬────────────────────────┘  │
-│       │              │                           │
-│  ┌────┴─────┐  ┌─────┴──────┐                    │
-│  │ Postgres │  │  S3/MinIO  │                    │
-│  │  (state) │  │ (bundles)  │                    │
-│  └──────────┘  └────────────┘                    │
+│  └────┬─────┘  └─────┬────┘  └────────┬──────┘  │
+│       │              │                │         │
+│  ┌────┴──────────────┴────────────────┴───────┐ │
+│  │           Contexts (Business Logic)        │ │
+│  │  Bundles · Nodes · Rollouts · Audit · Auth │ │
+│  └────┬──────────────┬────────────────────────┘ │
+│       │              │                          │
+│  ┌────┴─────┐  ┌─────┴──────┐                   │
+│  │ Postgres │  │  S3/MinIO  │                   │
+│  │  (state) │  │ (bundles)  │                   │
+│  └──────────┘  └────────────┘                   │
 └─────────────────────────────────────────────────┘
          │                          ▲
          │  Rollout assigns bundle  │  Heartbeat + status
