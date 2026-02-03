@@ -117,6 +117,28 @@ defmodule SentinelCp.Bundles do
   end
 
   @doc """
+  Revokes a compiled bundle, preventing further distribution.
+
+  Clears `staged_bundle_id` on any nodes that have this bundle staged.
+  Only compiled bundles can be revoked.
+  """
+  def revoke_bundle(%Bundle{status: "compiled"} = bundle) do
+    Repo.transaction(fn ->
+      {:ok, revoked} = update_status(bundle, "revoked")
+
+      # Clear staged_bundle_id on nodes that have this bundle staged
+      from(n in SentinelCp.Nodes.Node,
+        where: n.staged_bundle_id == ^bundle.id
+      )
+      |> Repo.update_all(set: [staged_bundle_id: nil])
+
+      revoked
+    end)
+  end
+
+  def revoke_bundle(%Bundle{}), do: {:error, :invalid_state}
+
+  @doc """
   Deletes a bundle (only if pending or failed).
   """
   def delete_bundle(%Bundle{status: status} = bundle) when status in ["pending", "failed"] do

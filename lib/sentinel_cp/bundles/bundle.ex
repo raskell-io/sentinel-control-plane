@@ -8,7 +8,7 @@ defmodule SentinelCp.Bundles.Bundle do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
-  @statuses ~w(pending compiling compiled failed superseded)
+  @statuses ~w(pending compiling compiled failed superseded revoked)
   @risk_levels ~w(low medium high)
   @source_types ~w(api git)
 

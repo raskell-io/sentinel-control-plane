@@ -205,4 +205,51 @@ defmodule SentinelCp.BundlesTest do
       assert {:error, :cannot_delete_active_bundle} = Bundles.delete_bundle(compiled)
     end
   end
+
+  describe "revoke_bundle/1" do
+    test "revokes a compiled bundle" do
+      bundle = bundle_fixture()
+      {:ok, compiled} = Bundles.update_status(bundle, "compiled")
+
+      assert {:ok, revoked} = Bundles.revoke_bundle(compiled)
+      assert revoked.status == "revoked"
+    end
+
+    test "returns error for non-compiled bundles" do
+      bundle = bundle_fixture()
+      # bundle is pending/failed after compile worker runs inline
+      reloaded = Bundles.get_bundle!(bundle.id)
+      assert {:error, :invalid_state} = Bundles.revoke_bundle(reloaded)
+    end
+
+    test "clears staged_bundle_id on nodes with the revoked bundle" do
+      project = project_fixture()
+      bundle = bundle_fixture(%{project: project})
+      {:ok, compiled} = Bundles.update_status(bundle, "compiled")
+
+      node = node_fixture(%{project: project})
+      {:ok, 1} = Bundles.assign_bundle_to_nodes(compiled, [node.id])
+
+      # Verify staged
+      assert SentinelCp.Nodes.get_node!(node.id).staged_bundle_id == compiled.id
+
+      # Revoke
+      assert {:ok, _revoked} = Bundles.revoke_bundle(compiled)
+
+      # Staged bundle cleared
+      assert is_nil(SentinelCp.Nodes.get_node!(node.id).staged_bundle_id)
+    end
+
+    test "revoked bundle excluded from get_latest_bundle" do
+      project = project_fixture()
+      bundle = bundle_fixture(%{project: project})
+      {:ok, compiled} = Bundles.update_status(bundle, "compiled")
+
+      assert Bundles.get_latest_bundle(project.id).id == compiled.id
+
+      {:ok, _revoked} = Bundles.revoke_bundle(compiled)
+
+      refute Bundles.get_latest_bundle(project.id)
+    end
+  end
 end

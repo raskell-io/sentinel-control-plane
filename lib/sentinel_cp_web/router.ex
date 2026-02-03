@@ -173,6 +173,7 @@ defmodule SentinelCpWeb.Router do
     scope "/projects/:project_slug" do
       post "/bundles", BundleController, :create
       post "/bundles/:id/assign", BundleController, :assign
+      post "/bundles/:id/revoke", BundleController, :revoke
     end
   end
 

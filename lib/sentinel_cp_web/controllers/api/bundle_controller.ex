@@ -97,7 +97,7 @@ defmodule SentinelCpWeb.Api.BundleController do
   def download(conn, %{"project_slug" => project_slug, "id" => bundle_id}) do
     with {:ok, project} <- get_project(project_slug),
          {:ok, bundle} <- get_bundle(bundle_id, project.id),
-         true <- bundle.status == "compiled" || {:error, :not_compiled},
+         :ok <- require_compiled(bundle),
          {:ok, url} <- Storage.presigned_url(bundle.storage_key) do
       api_key = conn.assigns.current_api_key
 
@@ -119,6 +119,9 @@ defmodule SentinelCpWeb.Api.BundleController do
       {:error, :not_compiled} ->
         conn |> put_status(:conflict) |> json(%{error: "Bundle is not yet compiled"})
 
+      {:error, :bundle_revoked} ->
+        conn |> put_status(:conflict) |> json(%{error: "Bundle has been revoked"})
+
       {:error, reason} ->
         conn |> put_status(:internal_server_error) |> json(%{error: inspect(reason)})
     end
@@ -133,7 +136,7 @@ defmodule SentinelCpWeb.Api.BundleController do
 
     with {:ok, project} <- get_project(project_slug),
          {:ok, bundle} <- get_bundle(bundle_id, project.id),
-         true <- bundle.status == "compiled" || {:error, :not_compiled},
+         :ok <- require_compiled(bundle),
          {:ok, count} <- Bundles.assign_bundle_to_nodes(bundle, node_ids) do
       api_key = conn.assigns.current_api_key
 
@@ -156,6 +159,9 @@ defmodule SentinelCpWeb.Api.BundleController do
         conn
         |> put_status(:conflict)
         |> json(%{error: "Bundle must be compiled before assignment"})
+
+      {:error, :bundle_revoked} ->
+        conn |> put_status(:conflict) |> json(%{error: "Bundle has been revoked"})
     end
   end
 
@@ -166,7 +172,7 @@ defmodule SentinelCpWeb.Api.BundleController do
   def verify(conn, %{"project_slug" => project_slug, "id" => bundle_id}) do
     with {:ok, project} <- get_project(project_slug),
          {:ok, bundle} <- get_bundle(bundle_id, project.id),
-         true <- bundle.status == "compiled" || {:error, :not_compiled} do
+         :ok <- require_compiled(bundle) do
       if is_nil(bundle.signature) do
         conn
         |> put_status(:ok)
@@ -196,6 +202,39 @@ defmodule SentinelCpWeb.Api.BundleController do
 
       {:error, :not_compiled} ->
         conn |> put_status(:conflict) |> json(%{error: "Bundle is not yet compiled"})
+
+      {:error, :bundle_revoked} ->
+        conn |> put_status(:conflict) |> json(%{error: "Bundle has been revoked"})
+    end
+  end
+
+  @doc """
+  POST /api/v1/projects/:project_slug/bundles/:id/revoke
+  Revokes a compiled bundle, preventing further distribution.
+  """
+  def revoke(conn, %{"project_slug" => project_slug, "id" => bundle_id}) do
+    with {:ok, project} <- get_project(project_slug),
+         {:ok, bundle} <- get_bundle(bundle_id, project.id),
+         {:ok, revoked} <- Bundles.revoke_bundle(bundle) do
+      api_key = conn.assigns.current_api_key
+
+      Audit.log_api_key_action(api_key, "bundle.revoked", "bundle", bundle.id,
+        project_id: project.id,
+        changes: %{version: bundle.version, previous_status: "compiled"}
+      )
+
+      conn
+      |> put_status(:ok)
+      |> json(%{bundle: bundle_to_json(revoked)})
+    else
+      {:error, :project_not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "Project not found"})
+
+      {:error, :bundle_not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "Bundle not found"})
+
+      {:error, :invalid_state} ->
+        conn |> put_status(:conflict) |> json(%{error: "Only compiled bundles can be revoked"})
     end
   end
 
@@ -215,6 +254,10 @@ defmodule SentinelCpWeb.Api.BundleController do
       _ -> {:error, :bundle_not_found}
     end
   end
+
+  defp require_compiled(%{status: "compiled"}), do: :ok
+  defp require_compiled(%{status: "revoked"}), do: {:error, :bundle_revoked}
+  defp require_compiled(_), do: {:error, :not_compiled}
 
   defp bundle_to_json(bundle) do
     %{

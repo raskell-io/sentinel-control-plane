@@ -283,26 +283,47 @@ defmodule SentinelCp.Rollouts do
   ## Private — Tick Logic
 
   defp start_step(rollout, step) do
-    # Transition step to running
-    {:ok, _step} =
-      step
-      |> RolloutStep.state_changeset("running")
-      |> Repo.update()
-
-    # Assign bundle to step's nodes
+    # Re-validate bundle is still compiled (could have been revoked since rollout creation)
     bundle = Bundles.get_bundle!(rollout.bundle_id)
-    {:ok, _count} = Bundles.assign_bundle_to_nodes(bundle, step.node_ids)
 
-    # Update NodeBundleStatus records to staging
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    if bundle.status != "compiled" do
+      {:ok, _step} =
+        step
+        |> RolloutStep.state_changeset("failed",
+          error: %{"reason" => "bundle_revoked", "bundle_id" => rollout.bundle_id}
+        )
+        |> Repo.update()
 
-    from(nbs in NodeBundleStatus,
-      where: nbs.rollout_id == ^rollout.id and nbs.node_id in ^step.node_ids
-    )
-    |> Repo.update_all(set: [state: "staging", last_report_at: now])
+      {:ok, _rollout} =
+        rollout
+        |> Rollout.state_changeset("failed",
+          error: %{"reason" => "bundle_revoked", "bundle_id" => rollout.bundle_id}
+        )
+        |> Repo.update()
 
-    broadcast_rollout_update(rollout)
-    {:ok, :step_started}
+      broadcast_rollout_update(rollout)
+      {:ok, :bundle_revoked}
+    else
+      # Transition step to running
+      {:ok, _step} =
+        step
+        |> RolloutStep.state_changeset("running")
+        |> Repo.update()
+
+      # Assign bundle to step's nodes
+      {:ok, _count} = Bundles.assign_bundle_to_nodes(bundle, step.node_ids)
+
+      # Update NodeBundleStatus records to staging
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      from(nbs in NodeBundleStatus,
+        where: nbs.rollout_id == ^rollout.id and nbs.node_id in ^step.node_ids
+      )
+      |> Repo.update_all(set: [state: "staging", last_report_at: now])
+
+      broadcast_rollout_update(rollout)
+      {:ok, :step_started}
+    end
   end
 
   defp check_step_running(rollout, step) do
