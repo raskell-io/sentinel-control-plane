@@ -113,6 +113,7 @@
     "masthead masthead"
     "sidebar main";
   height: 100vh;
+  background: oklch(var(--color-base-200));
 }
 
 .k8s-masthead {
@@ -128,7 +129,7 @@
 
 .k8s-sidebar {
   grid-area: sidebar;
-  background: oklch(var(--color-base-200));
+  background: oklch(var(--color-base-100));
   border-right: 1px solid oklch(var(--color-base-300));
   overflow-y: auto;
   padding: 0.5rem 0;
@@ -137,12 +138,17 @@
 .k8s-content {
   grid-area: main;
   overflow-y: auto;
-  padding: 1rem;
+  padding: 1.5rem;
+  margin: 0.5rem;
+  background: oklch(var(--color-base-100));
+  border: 1px solid oklch(var(--color-base-300));
+  border-radius: 0.5rem;
 }
 
 @media (min-width: 1024px) {
   .k8s-content {
     padding: 1.5rem;
+    margin: 0.75rem;
   }
 }
 
@@ -215,5 +221,12 @@
   }
   .k8s-sidebar {
     display: none;
+  }
+  .k8s-content {
+    margin: 0;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
   }
 }
