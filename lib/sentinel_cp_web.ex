@@ -52,6 +52,8 @@ defmodule SentinelCpWeb do
     quote do
       use Phoenix.LiveView
 
+      on_mount {SentinelCpWeb.LiveHelpers, :fetch_current_user}
+
       unquote(html_helpers())
     end
   end

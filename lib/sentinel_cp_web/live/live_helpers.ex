@@ -8,6 +8,17 @@ defmodule SentinelCpWeb.LiveHelpers do
   alias SentinelCp.Accounts
 
   @doc """
+  on_mount hook that fetches the current user from session.
+
+  Usage in LiveView:
+
+      on_mount {SentinelCpWeb.LiveHelpers, :fetch_current_user}
+  """
+  def on_mount(:fetch_current_user, _params, session, socket) do
+    {:cont, assign_current_user(socket, session)}
+  end
+
+  @doc """
   on_mount hook that requires admin role.
 
   Usage in LiveView:
