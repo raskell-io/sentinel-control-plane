@@ -25,12 +25,16 @@ defmodule SentinelCpWeb.Layouts do
 
     if assigns.current_user do
       ~H"""
-      <div class="k8s-layout">
+      <div class="k8s-layout bg-base-300">
         <.masthead current_user={@current_user} current_uri={@current_uri} />
-        <.sidebar_nav current_uri={@current_uri} />
-        <main class="k8s-content">
-          {render_slot(@inner_block)}
-        </main>
+        <div class="k8s-body">
+          <.sidebar_nav current_uri={@current_uri} />
+          <div class="k8s-content-wrapper">
+            <main class="k8s-content bg-base-100 border border-base-300 rounded-lg">
+              {render_slot(@inner_block)}
+            </main>
+          </div>
+        </div>
       </div>
       <.flash_group flash={@flash} />
       """
@@ -61,7 +65,7 @@ defmodule SentinelCpWeb.Layouts do
       )
 
     ~H"""
-    <header class="k8s-masthead">
+    <header class="k8s-masthead bg-base-300 border-b border-base-300">
       <div class="flex items-center gap-2 flex-shrink-0">
         <img src={~p"/images/logo.svg"} width="28" />
         <span class="font-bold text-sm hidden sm:inline">Sentinel CP</span>
@@ -113,7 +117,7 @@ defmodule SentinelCpWeb.Layouts do
       )
 
     ~H"""
-    <nav class="k8s-sidebar">
+    <nav class="k8s-sidebar bg-base-300">
       <div :if={@has_project}>
         <div class="sidebar-section-title">Workloads</div>
         <.sidebar_link

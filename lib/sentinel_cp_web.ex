@@ -50,7 +50,7 @@ defmodule SentinelCpWeb do
 
   def live_view do
     quote do
-      use Phoenix.LiveView
+      use Phoenix.LiveView, layout: false
 
       on_mount {SentinelCpWeb.LiveHelpers, :fetch_current_user}
       on_mount {SentinelCpWeb.LiveHelpers, :attach_uri_hook}
