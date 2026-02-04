@@ -65,14 +65,14 @@ Every mutation is audit-logged with actor, action, and diff.
 | **GitOps** | GitHub webhook integration — auto-compile bundles on push |
 | **Audit Logging** | Every mutation logged with who, what, when, and resource diff |
 | **Observability** | Prometheus metrics, structured JSON logging, health endpoints |
-| **LiveView UI** | Real-time dashboard for nodes, bundles, rollouts, and audit trail |
+| **LiveView UI** | K8s-style sidebar layout with real-time dashboard, resource management, and audit trail |
 | **Node Simulator** | Built-in fleet simulator for testing rollout logic without real nodes |
 
 ## Quick Start
 
 ### Prerequisites
 
-- Elixir 1.15+ / OTP 26+
+- [mise](https://mise.jdx.dev/) (manages Elixir 1.15+ / OTP 26+ and task runner)
 - PostgreSQL (production) or SQLite (development)
 - A [Sentinel](https://github.com/raskell-io/sentinel) binary (for config validation)
 
@@ -82,15 +82,24 @@ Every mutation is audit-logged with actor, action, and diff.
 # Clone and setup
 git clone https://github.com/raskell-io/sentinel-control-plane.git
 cd sentinel-control-plane
-mix setup
+mise install
+mise run setup
 
-# Start the server
-mix phx.server
+# Start the development server
+mise run dev
 ```
 
-Visit [localhost:4000](http://localhost:4000).
+Visit [localhost:4000](http://localhost:4000). Default login: `admin@localhost` / `changeme123456`.
 
-### Docker
+### Local Dev Stack (Docker Compose)
+
+Starts PostgreSQL, MinIO (S3), and the control plane together:
+
+```bash
+docker compose -f docker-compose.dev.yml up
+```
+
+### Production Docker
 
 ```bash
 docker build -t sentinel-cp .
