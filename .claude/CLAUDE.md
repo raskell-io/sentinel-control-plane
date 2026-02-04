@@ -58,16 +58,20 @@ lib/
 ├── sentinel_cp/
 │   ├── accounts/       # Users, API keys, authentication
 │   ├── audit/          # Audit logging
-│   ├── bundles/        # Bundle lifecycle
-│   ├── compiler/       # Compilation pipeline
-│   ├── nodes/          # Node management
+│   ├── auth/           # JWT signing keys, node tokens (Ed25519)
+│   ├── bundles/        # Bundle lifecycle, compiler, signing, SBOM, diff
+│   ├── dashboard/      # Fleet overview and metrics aggregation
+│   ├── nodes/          # Node management, heartbeats
+│   ├── orgs/           # Multi-org support, memberships
 │   ├── projects/       # Project/tenant management
-│   ├── rollouts/       # Rollout orchestration
-│   ├── simulator/      # Node simulator for testing
-│   └── storage/        # S3/MinIO abstraction
+│   ├── prom_ex/        # Prometheus metrics (custom Sentinel plugin)
+│   ├── rollouts/       # Rollout orchestration, tick worker, health gates
+│   ├── simulator/      # Node simulator (GenServer fleet)
+│   └── webhooks/       # GitHub webhook integration (GitOps)
 └── sentinel_cp_web/
-    ├── controllers/    # REST API
-    ├── live/           # LiveView pages
+    ├── controllers/    # REST API + webhook endpoints
+    ├── live/           # LiveView pages (dashboard, nodes, bundles, rollouts, audit, orgs)
+    ├── plugs/          # Auth, API auth, node auth, scope checking, org scoping
     └── components/     # UI components
 ```
 
@@ -103,8 +107,9 @@ The adapter is selected at compile time via `config :sentinel_cp, :ecto_adapter`
 ## Background Jobs
 
 Using Oban for reliable job processing:
-- `RolloutTickWorker`: Advances rollout state
-- `StalenessWorker`: Marks offline nodes
+- `CompileWorker`: Validates, assembles, signs, and uploads bundles
+- `RolloutTickWorker`: Advances rollout state (self-rescheduling every 5s)
+- `StalenessWorker`: Marks offline nodes (120s threshold)
 - `GCWorker`: Cleans old bundles
 
 ## Development
@@ -131,19 +136,26 @@ mise run db:migrate     # Run migrations
 
 ## Implementation Status
 
-See [CONTROL_PLANE_ROADMAP.md](./CONTROL_PLANE_ROADMAP.md) for detailed phases.
+See [CONTROL_PLANE_ROADMAP.md](./CONTROL_PLANE_ROADMAP.md) for the original roadmap.
 
-Current phase: **Phase 1 - Skeleton**
+All phases (1-7) and v1.1 features are implemented. Remaining gaps:
+
+| Gap | Description |
+|-----|-------------|
+| Risk scoring engine | `risk_level` field exists but no automatic analysis — just stores user-provided value. Needs: auth policy change detection, route count delta, scoring logic per roadmap spec. |
+| `max_unavailable` enforcement | Field on rollout schema but not checked in tick logic. All steps wait for 100% activation. |
+| GitOps config fetching | Webhook detects push events and file changes, but fetching config content from the repo is a placeholder. |
+| Additional health gates | Only `heartbeat_healthy` implemented. No CPU/memory/error-rate gates. |
+| LiveView tests | No LiveView-specific tests exist. Only context and controller tests (270 tests, ~3200 lines). |
 
 ## Work Instructions
 
 When implementing features:
 
-1. **Follow the roadmap phases** - Don't skip ahead
-2. **Write tests first** - Especially for domain logic
-3. **Use contexts** - Keep Phoenix conventions
-4. **Audit mutations** - Log all state changes
-5. **Handle errors explicitly** - No silent failures
+1. **Write tests first** - Especially for domain logic
+2. **Use contexts** - Keep Phoenix conventions
+3. **Audit mutations** - Log all state changes
+4. **Handle errors explicitly** - No silent failures
 
 ### Code Style
 
@@ -154,10 +166,11 @@ When implementing features:
 
 ### Naming Conventions
 
-- Contexts: `SentinelCp.Nodes`, `SentinelCp.Bundles`
-- Schemas: `SentinelCp.Nodes.Node`, `SentinelCp.Bundles.Bundle`
-- Workers: `SentinelCp.Rollouts.TickWorker`
-- LiveViews: `SentinelCpWeb.NodesLive.Index`
+- Contexts: `SentinelCp.Nodes`, `SentinelCp.Bundles`, `SentinelCp.Orgs`
+- Schemas: `SentinelCp.Nodes.Node`, `SentinelCp.Bundles.Bundle`, `SentinelCp.Orgs.Org`
+- Workers: `SentinelCp.Rollouts.TickWorker`, `SentinelCp.Bundles.CompileWorker`
+- LiveViews: `SentinelCpWeb.NodesLive.Index`, `SentinelCpWeb.DashboardLive.Index`
+- Plugs: `SentinelCpWeb.Plugs.Auth`, `SentinelCpWeb.Plugs.NodeAuth`
 
 ## Environment Variables
 
@@ -171,3 +184,5 @@ When implementing features:
 | `S3_ENDPOINT` | S3/MinIO endpoint | `http://localhost:9000` |
 | `S3_ACCESS_KEY_ID` | S3 access key | - |
 | `S3_SECRET_ACCESS_KEY` | S3 secret key | - |
+| `SENTINEL_BINARY` | Path to `sentinel` CLI binary | `sentinel` |
+| `GITHUB_WEBHOOK_SECRET` | HMAC secret for GitHub webhooks | - |
