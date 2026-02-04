@@ -51,6 +51,7 @@ defmodule SentinelCp.Rollouts.Rollout do
     |> validate_number(:max_unavailable, greater_than_or_equal_to: 0)
     |> validate_number(:progress_deadline_seconds, greater_than: 0)
     |> validate_target_selector()
+    |> validate_health_gates()
     |> put_change(:state, "pending")
     |> foreign_key_constraint(:project_id)
     |> foreign_key_constraint(:bundle_id)
@@ -84,6 +85,20 @@ defmodule SentinelCp.Rollouts.Rollout do
 
   defp maybe_set_error(changes, nil), do: changes
   defp maybe_set_error(changes, error), do: Map.put(changes, :error, error)
+
+  @valid_health_gate_keys ~w(heartbeat_healthy max_error_rate max_latency_ms max_cpu_percent max_memory_percent)
+
+  defp validate_health_gates(changeset) do
+    validate_change(changeset, :health_gates, fn :health_gates, gates ->
+      unknown = Map.keys(gates) -- @valid_health_gate_keys
+
+      if unknown == [] do
+        []
+      else
+        [health_gates: "unknown keys: #{Enum.join(unknown, ", ")}"]
+      end
+    end)
+  end
 
   defp validate_target_selector(changeset) do
     validate_change(changeset, :target_selector, fn :target_selector, selector ->

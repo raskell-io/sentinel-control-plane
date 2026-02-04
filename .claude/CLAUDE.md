@@ -145,7 +145,6 @@ All phases (1-7) and v1.1 features are implemented. Remaining gaps:
 | Risk scoring engine | `risk_level` field exists but no automatic analysis — just stores user-provided value. Needs: auth policy change detection, route count delta, scoring logic per roadmap spec. |
 | `max_unavailable` enforcement | Field on rollout schema but not checked in tick logic. All steps wait for 100% activation. |
 | GitOps config fetching | Webhook detects push events and file changes, but fetching config content from the repo is a placeholder. |
-| Additional health gates | Only `heartbeat_healthy` implemented. No CPU/memory/error-rate gates. |
 | LiveView tests | No LiveView-specific tests exist. Only context and controller tests (270 tests, ~3200 lines). |
 
 ## Work Instructions

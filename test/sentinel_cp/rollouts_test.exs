@@ -78,6 +78,38 @@ defmodule SentinelCp.RolloutsTest do
 
       assert errors_on(changeset)[:strategy]
     end
+
+    test "rejects unknown health_gates keys" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Rollouts.create_rollout(%{
+                 project_id: project.id,
+                 bundle_id: bundle.id,
+                 target_selector: %{"type" => "all"},
+                 health_gates: %{"unknown_gate" => true}
+               })
+
+      assert errors_on(changeset)[:health_gates]
+    end
+
+    test "accepts valid health_gates keys" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+
+      assert {:ok, %Rollout{}} =
+               Rollouts.create_rollout(%{
+                 project_id: project.id,
+                 bundle_id: bundle.id,
+                 target_selector: %{"type" => "all"},
+                 health_gates: %{
+                   "heartbeat_healthy" => true,
+                   "max_error_rate" => 0.05,
+                   "max_cpu_percent" => 80
+                 }
+               })
+    end
   end
 
   describe "plan_rollout/1" do
@@ -603,6 +635,124 @@ defmodule SentinelCp.RolloutsTest do
 
       running = Rollouts.get_rollout!(rollout.id)
       assert {:ok, :waiting} = Rollouts.tick_rollout(running)
+    end
+
+    test "cpu health gate blocks step completion" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+      node = node_fixture(%{project: project})
+
+      rollout =
+        rollout_fixture(%{project: project, bundle: bundle})
+
+      import Ecto.Query
+
+      from(r in Rollout, where: r.id == ^rollout.id)
+      |> Repo.update_all(set: [health_gates: %{"max_cpu_percent" => 80}])
+
+      {:ok, _} = Rollouts.plan_rollout(rollout)
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_started} = Rollouts.tick_rollout(running)
+
+      from(n in SentinelCp.Nodes.Node, where: n.id == ^node.id)
+      |> Repo.update_all(set: [active_bundle_id: bundle.id])
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_verifying} = Rollouts.tick_rollout(running)
+
+      # Add heartbeat with high CPU usage
+      SentinelCp.Nodes.record_heartbeat(node, %{
+        health: %{"status" => "healthy"},
+        metrics: %{"cpu_percent" => 95}
+      })
+
+      running = Rollouts.get_rollout!(rollout.id)
+      assert {:ok, :waiting} = Rollouts.tick_rollout(running)
+    end
+
+    test "memory health gate blocks step completion" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+      node = node_fixture(%{project: project})
+
+      rollout =
+        rollout_fixture(%{project: project, bundle: bundle})
+
+      import Ecto.Query
+
+      from(r in Rollout, where: r.id == ^rollout.id)
+      |> Repo.update_all(set: [health_gates: %{"max_memory_percent" => 85}])
+
+      {:ok, _} = Rollouts.plan_rollout(rollout)
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_started} = Rollouts.tick_rollout(running)
+
+      from(n in SentinelCp.Nodes.Node, where: n.id == ^node.id)
+      |> Repo.update_all(set: [active_bundle_id: bundle.id])
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_verifying} = Rollouts.tick_rollout(running)
+
+      # Add heartbeat with high memory usage
+      SentinelCp.Nodes.record_heartbeat(node, %{
+        health: %{"status" => "healthy"},
+        metrics: %{"memory_percent" => 92}
+      })
+
+      running = Rollouts.get_rollout!(rollout.id)
+      assert {:ok, :waiting} = Rollouts.tick_rollout(running)
+    end
+
+    test "health gates pass when metrics are within thresholds" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+      node = node_fixture(%{project: project})
+
+      rollout =
+        rollout_fixture(%{project: project, bundle: bundle})
+
+      import Ecto.Query
+
+      # Set all health gates
+      from(r in Rollout, where: r.id == ^rollout.id)
+      |> Repo.update_all(
+        set: [
+          health_gates: %{
+            "heartbeat_healthy" => true,
+            "max_error_rate" => 0.05,
+            "max_latency_ms" => 100,
+            "max_cpu_percent" => 80,
+            "max_memory_percent" => 85
+          }
+        ]
+      )
+
+      {:ok, _} = Rollouts.plan_rollout(rollout)
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_started} = Rollouts.tick_rollout(running)
+
+      from(n in SentinelCp.Nodes.Node, where: n.id == ^node.id)
+      |> Repo.update_all(set: [active_bundle_id: bundle.id])
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_verifying} = Rollouts.tick_rollout(running)
+
+      # Add heartbeat with all metrics within thresholds
+      SentinelCp.Nodes.record_heartbeat(node, %{
+        health: %{"status" => "healthy"},
+        metrics: %{
+          "error_rate" => 0.01,
+          "latency_p99_ms" => 50,
+          "cpu_percent" => 40,
+          "memory_percent" => 60
+        }
+      })
+
+      running = Rollouts.get_rollout!(rollout.id)
+      assert {:ok, :step_completed} = Rollouts.tick_rollout(running)
     end
   end
 
