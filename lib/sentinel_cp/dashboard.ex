@@ -103,7 +103,7 @@ defmodule SentinelCp.Dashboard do
     |> Repo.one()
   end
 
-  defp count_recent_bundles(project_ids, days) when project_ids == [], do: 0
+  defp count_recent_bundles(project_ids, _days) when project_ids == [], do: 0
 
   defp count_recent_bundles(project_ids, days) do
     cutoff = DateTime.utc_now() |> DateTime.add(-days * 86400, :second)

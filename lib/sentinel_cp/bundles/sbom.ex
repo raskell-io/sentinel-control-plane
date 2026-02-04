@@ -13,7 +13,7 @@ defmodule SentinelCp.Bundles.Sbom do
 
   Returns `{:ok, sbom_map}` or `{:error, reason}`.
   """
-  def generate(%{config_source: config_source, version: version, id: bundle_id} = bundle) do
+  def generate(%{config_source: config_source, version: version, id: bundle_id} = _bundle) do
     components = extract_components(config_source)
 
     sbom = %{

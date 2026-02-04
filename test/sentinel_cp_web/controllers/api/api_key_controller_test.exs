@@ -107,7 +107,7 @@ defmodule SentinelCpWeb.Api.ApiKeyControllerTest do
   end
 
   describe "scope enforcement" do
-    test "returns 403 without api_keys:admin scope", %{conn: conn} do
+    test "returns 403 without api_keys:admin scope", %{conn: _conn} do
       user = AccountsFixtures.user_fixture()
       project = ProjectsFixtures.project_fixture()
 

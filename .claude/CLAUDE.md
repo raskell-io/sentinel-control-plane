@@ -138,14 +138,7 @@ mise run db:migrate     # Run migrations
 
 See [CONTROL_PLANE_ROADMAP.md](./CONTROL_PLANE_ROADMAP.md) for the original roadmap.
 
-All phases (1-7) and v1.1 features are implemented. Remaining gaps:
-
-| Gap | Description |
-|-----|-------------|
-| Risk scoring engine | `risk_level` field exists but no automatic analysis — just stores user-provided value. Needs: auth policy change detection, route count delta, scoring logic per roadmap spec. |
-| `max_unavailable` enforcement | Field on rollout schema but not checked in tick logic. All steps wait for 100% activation. |
-| GitOps config fetching | Webhook detects push events and file changes, but fetching config content from the repo is a placeholder. |
-| LiveView tests | No LiveView-specific tests exist. Only context and controller tests (270 tests, ~3200 lines). |
+All phases (1-7) and v1.1 features are implemented.
 
 ## Work Instructions
 

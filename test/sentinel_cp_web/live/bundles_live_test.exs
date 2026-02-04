@@ -20,7 +20,7 @@ defmodule SentinelCpWeb.BundlesLiveTest do
     end
 
     test "shows compiled bundles", %{conn: conn, project: project} do
-      bundle = compiled_bundle_fixture(%{project: project, version: "v2.0.1"})
+      _bundle = compiled_bundle_fixture(%{project: project, version: "v2.0.1"})
       {:ok, _view, html} = live(conn, ~p"/projects/#{project.slug}/bundles")
       assert html =~ "v2.0.1"
       assert html =~ "compiled"
