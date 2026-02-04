@@ -445,6 +445,189 @@ defmodule SentinelCpWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders a 2-letter colored badge for resource types.
+
+  ## Examples
+
+      <.resource_badge type="node" />
+      <.resource_badge type="bundle" />
+  """
+  attr :type, :string, required: true
+
+  def resource_badge(assigns) do
+    {letters, color} =
+      case assigns.type do
+        "node" -> {"ND", "badge-info"}
+        "bundle" -> {"BN", "badge-success"}
+        "rollout" -> {"RO", "badge-warning"}
+        "project" -> {"PJ", "badge-primary"}
+        "org" -> {"OR", "badge-secondary"}
+        _ -> {"??", "badge-ghost"}
+      end
+
+    assigns = assign(assigns, letters: letters, color: color)
+
+    ~H"""
+    <span class={["badge badge-xs font-mono font-bold", @color]}>{@letters}</span>
+    """
+  end
+
+  @doc """
+  Renders a toolbar bar above resource tables.
+
+  ## Examples
+
+      <.table_toolbar>
+        <:filters>...</:filters>
+        <:actions>...</:actions>
+      </.table_toolbar>
+  """
+  slot :filters
+  slot :actions
+
+  def table_toolbar(assigns) do
+    ~H"""
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        {render_slot(@filters)}
+      </div>
+      <div class="flex items-center gap-2">
+        {render_slot(@actions)}
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a K8s-style resource detail page header.
+
+  ## Examples
+
+      <.detail_header name="my-node" resource_type="node">
+        <:badge><span class="badge">online</span></:badge>
+        <:action><button class="btn btn-sm">Delete</button></:action>
+        <:subtitle>Registered 2024-01-01</:subtitle>
+      </.detail_header>
+  """
+  attr :name, :string, required: true
+  attr :resource_type, :string, default: nil
+  attr :back_path, :string, default: nil
+
+  slot :badge
+  slot :action
+  slot :subtitle
+
+  def detail_header(assigns) do
+    ~H"""
+    <div class="border-b border-base-300 pb-4 mb-6">
+      <.link :if={@back_path} navigate={@back_path} class="text-sm text-base-content/50 hover:text-base-content mb-2 inline-block">
+        &larr; Back
+      </.link>
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h1 class="text-xl font-bold flex items-center gap-2 flex-wrap">
+            <.resource_badge :if={@resource_type} type={@resource_type} />
+            {@name}
+            {render_slot(@badge)}
+          </h1>
+          <p :if={@subtitle != []} class="text-sm text-base-content/60 mt-1">
+            {render_slot(@subtitle)}
+          </p>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          {render_slot(@action)}
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a bordered section with optional uppercase title.
+
+  ## Examples
+
+      <.k8s_section title="Node Information">
+        <p>Details here</p>
+      </.k8s_section>
+  """
+  attr :title, :string, default: nil
+  attr :class, :string, default: nil
+
+  slot :inner_block, required: true
+
+  def k8s_section(assigns) do
+    ~H"""
+    <div class={["bg-base-200 rounded border border-base-300 p-4", @class]}>
+      <div :if={@title} class="section-title">{@title}</div>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a key-value definition list.
+
+  ## Examples
+
+      <.definition_list>
+        <:item label="ID">abc123</:item>
+        <:item label="Status">Online</:item>
+      </.definition_list>
+  """
+  slot :item, required: true do
+    attr :label, :string, required: true
+  end
+
+  def definition_list(assigns) do
+    ~H"""
+    <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+      <%= for item <- @item do %>
+        <dt class="text-base-content/50">{item.label}</dt>
+        <dd>{render_slot(item)}</dd>
+      <% end %>
+    </dl>
+    """
+  end
+
+  @doc """
+  Renders a horizontal row of compact stats.
+
+  ## Examples
+
+      <.stat_strip>
+        <:stat label="Total" value="42" />
+        <:stat label="Online" value="38" color="success" />
+      </.stat_strip>
+  """
+  slot :stat, required: true do
+    attr :label, :string, required: true
+    attr :value, :string, required: true
+    attr :color, :string
+  end
+
+  def stat_strip(assigns) do
+    ~H"""
+    <div class="flex flex-wrap gap-3">
+      <%= for stat <- @stat do %>
+        <div class="bg-base-200 border border-base-300 rounded px-4 py-2 min-w-[100px]">
+          <div class="text-[10px] uppercase tracking-wider text-base-content/50">{stat.label}</div>
+          <div class={[
+            "text-2xl font-bold",
+            stat[:color] == "success" && "text-success",
+            stat[:color] == "error" && "text-error",
+            stat[:color] == "warning" && "text-warning",
+            stat[:color] == "info" && "text-info"
+          ]}>
+            {stat.value}
+          </div>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do

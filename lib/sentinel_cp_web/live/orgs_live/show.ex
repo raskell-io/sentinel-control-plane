@@ -131,23 +131,16 @@ defmodule SentinelCpWeb.OrgsLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto px-4 py-8">
-      <div class="text-sm breadcrumbs mb-4">
-        <ul>
-          <li><.link navigate={~p"/orgs"}>Organizations</.link></li>
-          <li>{@org.name}</li>
-        </ul>
-      </div>
+    <div class="space-y-4">
+      <.detail_header name={@org.name} resource_type="org" back_path={~p"/orgs"}>
+        <:badge><span class="badge badge-ghost font-mono">{@org.slug}</span></:badge>
+        <:action>
+          <button class="btn btn-ghost btn-sm" phx-click="toggle_edit">Edit</button>
+        </:action>
+      </.detail_header>
 
-      <div class="flex items-center gap-4 mb-6">
-        <h1 class="text-2xl font-bold">{@org.name}</h1>
-        <span class="badge badge-ghost font-mono">{@org.slug}</span>
-        <button class="btn btn-ghost btn-xs" phx-click="toggle_edit">Edit</button>
-      </div>
-
-      <div :if={@show_edit} class="card bg-base-200 mb-6">
-        <div class="card-body">
-          <h2 class="card-title text-lg">Edit Organization</h2>
+      <div :if={@show_edit}>
+        <.k8s_section title="Edit Organization">
           <form phx-submit="update_org" class="space-y-4">
             <div class="form-control">
               <label class="label"><span class="label-text">Name</span></label>
@@ -156,7 +149,7 @@ defmodule SentinelCpWeb.OrgsLive.Show do
                 name="name"
                 required
                 value={@org.name}
-                class="input input-bordered w-full max-w-xs"
+                class="input input-bordered input-sm w-full max-w-xs"
               />
             </div>
             <div class="flex gap-2">
@@ -166,110 +159,107 @@ defmodule SentinelCpWeb.OrgsLive.Show do
               </button>
             </div>
           </form>
-        </div>
+        </.k8s_section>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <%!-- Quick Links --%>
-        <div class="card bg-base-200">
-          <div class="card-body">
-            <h2 class="card-title text-lg">Quick Links</h2>
-            <div class="flex flex-col gap-2">
-              <.link navigate={~p"/orgs/#{@org.slug}/projects"} class="link link-primary">
-                Projects
-              </.link>
-            </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <.k8s_section title="Quick Links">
+          <div class="flex flex-col gap-2">
+            <.link navigate={~p"/orgs/#{@org.slug}/projects"} class="link link-primary text-sm">
+              Projects
+            </.link>
+            <.link navigate={~p"/orgs/#{@org.slug}/dashboard"} class="link link-primary text-sm">
+              Dashboard
+            </.link>
           </div>
-        </div>
+        </.k8s_section>
 
-        <%!-- Members --%>
-        <div class="card bg-base-200">
-          <div class="card-body">
-            <div class="flex justify-between items-center">
-              <h2 class="card-title text-lg">Members</h2>
+        <.k8s_section title="Members">
+          <.table_toolbar>
+            <:actions>
               <button class="btn btn-primary btn-xs" phx-click="toggle_add_member">
                 Add Member
               </button>
-            </div>
+            </:actions>
+          </.table_toolbar>
 
-            <div :if={@show_add_member} class="bg-base-300 rounded-lg p-4 my-2">
-              <form phx-submit="add_member" class="space-y-3">
-                <div class="form-control">
-                  <label class="label"><span class="label-text">Email</span></label>
-                  <input
-                    type="email"
-                    name="email"
-                    required
-                    class="input input-bordered input-sm w-full"
-                    placeholder="user@example.com"
-                  />
-                </div>
-                <div class="form-control">
-                  <label class="label"><span class="label-text">Role</span></label>
-                  <select name="role" class="select select-bordered select-sm w-full">
-                    <option value="reader">Reader</option>
-                    <option value="operator">Operator</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-                <div class="flex gap-2">
-                  <button type="submit" class="btn btn-primary btn-xs">Add</button>
-                  <button type="button" class="btn btn-ghost btn-xs" phx-click="toggle_add_member">
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr :for={membership <- @members}>
-                  <td>{membership.user.email}</td>
-                  <td>
-                    <%= if membership.user_id == @current_user.id do %>
-                      <span class={[
-                        "badge badge-sm",
-                        membership.role == "admin" && "badge-primary",
-                        membership.role == "operator" && "badge-warning",
-                        membership.role == "reader" && "badge-ghost"
-                      ]}>
-                        {membership.role}
-                      </span>
-                    <% else %>
-                      <form phx-change="update_role" class="inline">
-                        <input type="hidden" name="membership_id" value={membership.id} />
-                        <select name="role" class="select select-bordered select-xs" onchange="this.form.dispatchEvent(new Event('change', {bubbles: true}))">
-                          <option value="reader" selected={membership.role == "reader"}>reader</option>
-                          <option value="operator" selected={membership.role == "operator"}>operator</option>
-                          <option value="admin" selected={membership.role == "admin"}>admin</option>
-                        </select>
-                      </form>
-                    <% end %>
-                  </td>
-                  <td>
-                    <%= if membership.user_id != @current_user.id do %>
-                      <button
-                        phx-click="remove_member"
-                        phx-value-id={membership.id}
-                        data-confirm="Remove this member from the organization?"
-                        class="btn btn-ghost btn-xs text-error"
-                      >
-                        Remove
-                      </button>
-                    <% end %>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div :if={@show_add_member} class="bg-base-300 rounded p-4 mb-3">
+            <form phx-submit="add_member" class="space-y-3">
+              <div class="form-control">
+                <label class="label"><span class="label-text">Email</span></label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  class="input input-bordered input-sm w-full"
+                  placeholder="user@example.com"
+                />
+              </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">Role</span></label>
+                <select name="role" class="select select-bordered select-sm w-full">
+                  <option value="reader">Reader</option>
+                  <option value="operator">Operator</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary btn-xs">Add</button>
+                <button type="button" class="btn btn-ghost btn-xs" phx-click="toggle_add_member">
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
-        </div>
+
+          <table class="table table-sm">
+            <thead class="bg-base-300">
+              <tr>
+                <th class="text-xs uppercase">Email</th>
+                <th class="text-xs uppercase">Role</th>
+                <th class="text-xs uppercase"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={membership <- @members}>
+                <td class="text-sm">{membership.user.email}</td>
+                <td>
+                  <%= if membership.user_id == @current_user.id do %>
+                    <span class={[
+                      "badge badge-sm",
+                      membership.role == "admin" && "badge-primary",
+                      membership.role == "operator" && "badge-warning",
+                      membership.role == "reader" && "badge-ghost"
+                    ]}>
+                      {membership.role}
+                    </span>
+                  <% else %>
+                    <form phx-change="update_role" class="inline">
+                      <input type="hidden" name="membership_id" value={membership.id} />
+                      <select name="role" class="select select-bordered select-xs" onchange="this.form.dispatchEvent(new Event('change', {bubbles: true}))">
+                        <option value="reader" selected={membership.role == "reader"}>reader</option>
+                        <option value="operator" selected={membership.role == "operator"}>operator</option>
+                        <option value="admin" selected={membership.role == "admin"}>admin</option>
+                      </select>
+                    </form>
+                  <% end %>
+                </td>
+                <td>
+                  <%= if membership.user_id != @current_user.id do %>
+                    <button
+                      phx-click="remove_member"
+                      phx-value-id={membership.id}
+                      data-confirm="Remove this member from the organization?"
+                      class="btn btn-ghost btn-xs text-error"
+                    >
+                      Remove
+                    </button>
+                  <% end %>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </.k8s_section>
       </div>
     </div>
     """

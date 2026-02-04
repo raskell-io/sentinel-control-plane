@@ -157,199 +157,139 @@ defmodule SentinelCpWeb.NodesLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto px-4 py-8">
-      <div class="mb-6">
-        <.link
-          navigate={nodes_path(@org, @project)}
-          class="text-sm text-gray-500 hover:text-gray-700"
-        >
-          &larr; Back to nodes
-        </.link>
-      </div>
+    <div class="space-y-4">
+      <.detail_header name={@node.name} resource_type="node" back_path={nodes_path(@org, @project)}>
+        <:badge>
+          <.status_badge status={@node.status} />
+          <span :if={@node.version} class="badge badge-outline badge-sm font-mono">v{@node.version}</span>
+        </:badge>
+        <:subtitle>Registered {format_datetime(@node.registered_at)}</:subtitle>
+        <:action>
+          <button
+            phx-click="delete"
+            data-confirm="Are you sure you want to delete this node?"
+            class="btn btn-error btn-sm"
+          >
+            Delete Node
+          </button>
+        </:action>
+      </.detail_header>
 
-      <div class="flex justify-between items-start mb-6">
-        <div>
-          <h1 class="text-2xl font-bold flex items-center gap-3">
-            {@node.name}
-            <.status_badge status={@node.status} />
-            <span :if={@node.version} class="badge badge-outline font-mono">v{@node.version}</span>
-          </h1>
-          <p class="text-gray-500 mt-1">
-            Registered {format_datetime(@node.registered_at)}
-          </p>
-        </div>
-        <button
-          phx-click="delete"
-          data-confirm="Are you sure you want to delete this node?"
-          class="btn btn-error btn-sm"
-        >
-          Delete Node
-        </button>
-      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <.k8s_section title="Node Information">
+          <.definition_list>
+            <:item label="ID"><span class="font-mono text-sm">{@node.id}</span></:item>
+            <:item label="Hostname"><span class="font-mono text-sm">{@node.hostname || "-"}</span></:item>
+            <:item label="IP Address"><span class="font-mono text-sm">{@node.ip || "-"}</span></:item>
+            <:item label="Version"><span class="font-mono text-sm">{@node.version || "-"}</span></:item>
+            <:item label="Last Seen">
+              {if @node.last_seen_at, do: format_relative_time(@node.last_seen_at), else: "Never"}
+            </:item>
+            <:item label="Active Bundle">
+              <%= if @node.active_bundle_id do %>
+                <.link navigate={bundle_path(@org, @project, @node.active_bundle_id)} class="link link-primary font-mono text-sm">
+                  {String.slice(@node.active_bundle_id, 0, 8)}…
+                </.link>
+              <% else %>
+                <span class="text-base-content/50">None</span>
+              <% end %>
+            </:item>
+            <:item label="Staged Bundle">
+              <%= if @node.staged_bundle_id do %>
+                <.link navigate={bundle_path(@org, @project, @node.staged_bundle_id)} class="link link-primary font-mono text-sm">
+                  {String.slice(@node.staged_bundle_id, 0, 8)}…
+                </.link>
+              <% else %>
+                <span class="text-base-content/50">None</span>
+              <% end %>
+            </:item>
+          </.definition_list>
+        </.k8s_section>
 
-      <div class="grid grid-cols-2 gap-6">
-        <!-- Node Info Card -->
-        <div class="bg-base-100 rounded-lg shadow p-6">
-          <h2 class="text-lg font-semibold mb-4">Node Information</h2>
-          <dl class="space-y-3">
-            <div class="flex justify-between">
-              <dt class="text-gray-500">ID</dt>
-              <dd class="font-mono text-sm">{@node.id}</dd>
+        <div class="space-y-4">
+          <.k8s_section title="Labels">
+            <div class="flex justify-end mb-2">
+              <button class="btn btn-ghost btn-xs" phx-click="toggle_label_form">Edit Labels</button>
             </div>
-            <div class="flex justify-between">
-              <dt class="text-gray-500">Hostname</dt>
-              <dd class="font-mono text-sm">{@node.hostname || "-"}</dd>
-            </div>
-            <div class="flex justify-between">
-              <dt class="text-gray-500">IP Address</dt>
-              <dd class="font-mono text-sm">{@node.ip || "-"}</dd>
-            </div>
-            <div class="flex justify-between">
-              <dt class="text-gray-500">Version</dt>
-              <dd class="font-mono text-sm">{@node.version || "-"}</dd>
-            </div>
-            <div class="flex justify-between">
-              <dt class="text-gray-500">Last Seen</dt>
-              <dd class="text-sm">
-                {if @node.last_seen_at, do: format_relative_time(@node.last_seen_at), else: "Never"}
-              </dd>
-            </div>
-          </dl>
-        </div>
-        
-    <!-- Bundle Status Card -->
-        <div class="bg-base-100 rounded-lg shadow p-6">
-          <h2 class="text-lg font-semibold mb-4">Bundle Status</h2>
-          <dl class="space-y-3">
-            <div class="flex justify-between">
-              <dt class="text-gray-500">Active Bundle</dt>
-              <dd class="font-mono text-sm">
-                <%= if @node.active_bundle_id do %>
-                  <.link
-                    navigate={bundle_path(@org, @project, @node.active_bundle_id)}
-                    class="link link-primary"
-                  >
-                    {String.slice(@node.active_bundle_id, 0, 8)}…
-                  </.link>
-                <% else %>
-                  None
-                <% end %>
-              </dd>
-            </div>
-            <div class="flex justify-between">
-              <dt class="text-gray-500">Staged Bundle</dt>
-              <dd class="font-mono text-sm">
-                <%= if @node.staged_bundle_id do %>
-                  <.link
-                    navigate={bundle_path(@org, @project, @node.staged_bundle_id)}
-                    class="link link-primary"
-                  >
-                    {String.slice(@node.staged_bundle_id, 0, 8)}…
-                  </.link>
-                <% else %>
-                  None
-                <% end %>
-              </dd>
-            </div>
-          </dl>
-        </div>
-        
-    <!-- Labels Card -->
-        <div class="bg-base-100 rounded-lg shadow p-6">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-semibold">Labels</h2>
-            <button class="btn btn-ghost btn-xs" phx-click="toggle_label_form">
-              Edit Labels
-            </button>
-          </div>
-          <div :if={@show_label_form} class="mb-4">
-            <form phx-submit="update_labels" class="space-y-3">
-              <div class="form-control">
-                <label class="label"><span class="label-text">Labels (one key=value per line)</span></label>
+            <div :if={@show_label_form} class="mb-3">
+              <form phx-submit="update_labels" class="space-y-3">
                 <textarea
                   name="labels"
                   rows="5"
-                  class="textarea textarea-bordered font-mono text-sm w-full"
+                  class="textarea textarea-bordered textarea-sm font-mono text-sm w-full"
                 >{format_labels_for_edit(@node.labels)}</textarea>
-              </div>
-              <div class="flex gap-2">
-                <button type="submit" class="btn btn-primary btn-xs">Save</button>
-                <button type="button" class="btn btn-ghost btn-xs" phx-click="toggle_label_form">
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-          <%= if @node.labels && map_size(@node.labels) > 0 do %>
-            <div class="flex flex-wrap gap-2">
-              <%= for {key, value} <- @node.labels do %>
-                <span class="badge badge-outline">
-                  {key}: {value}
-                </span>
-              <% end %>
+                <div class="flex gap-2">
+                  <button type="submit" class="btn btn-primary btn-xs">Save</button>
+                  <button type="button" class="btn btn-ghost btn-xs" phx-click="toggle_label_form">Cancel</button>
+                </div>
+              </form>
             </div>
-          <% else %>
-            <p class="text-gray-500 text-sm">No labels</p>
-          <% end %>
-        </div>
-        
-    <!-- Capabilities Card -->
-        <div class="bg-base-100 rounded-lg shadow p-6">
-          <h2 class="text-lg font-semibold mb-4">Capabilities</h2>
-          <%= if @node.capabilities && length(@node.capabilities) > 0 do %>
-            <div class="flex flex-wrap gap-2">
-              <%= for cap <- @node.capabilities do %>
-                <span class="badge badge-primary badge-outline">{cap}</span>
-              <% end %>
-            </div>
-          <% else %>
-            <p class="text-gray-500 text-sm">No capabilities reported</p>
-          <% end %>
+            <%= if @node.labels && map_size(@node.labels) > 0 do %>
+              <div class="flex flex-wrap gap-2">
+                <%= for {key, value} <- @node.labels do %>
+                  <span class="badge badge-outline badge-sm">{key}: {value}</span>
+                <% end %>
+              </div>
+            <% else %>
+              <p class="text-base-content/50 text-sm">No labels</p>
+            <% end %>
+          </.k8s_section>
+
+          <.k8s_section title="Capabilities">
+            <%= if @node.capabilities && length(@node.capabilities) > 0 do %>
+              <div class="flex flex-wrap gap-2">
+                <%= for cap <- @node.capabilities do %>
+                  <span class="badge badge-primary badge-outline badge-sm">{cap}</span>
+                <% end %>
+              </div>
+            <% else %>
+              <p class="text-base-content/50 text-sm">No capabilities reported</p>
+            <% end %>
+          </.k8s_section>
         </div>
       </div>
-      
-    <!-- Tabbed Section: Events / Runtime Config / Heartbeats -->
-      <div class="mt-6 bg-base-100 rounded-lg shadow overflow-hidden">
-        <div class="border-b">
-          <div class="flex">
+
+      <%!-- Tabbed Section --%>
+      <.k8s_section>
+        <div class="border-b border-base-300 mb-4">
+          <div class="flex -mb-px">
             <button
               phx-click="switch_tab"
               phx-value-tab="events"
-              class={"px-4 py-3 text-sm font-medium border-b-2 #{if @active_tab == "events", do: "border-primary text-primary", else: "border-transparent text-gray-500 hover:text-gray-700"}"}
+              class={"px-4 py-2 text-sm font-medium border-b-2 #{if @active_tab == "events", do: "border-primary text-primary", else: "border-transparent text-base-content/50 hover:text-base-content"}"}
             >
               Events
             </button>
             <button
               phx-click="switch_tab"
               phx-value-tab="config"
-              class={"px-4 py-3 text-sm font-medium border-b-2 #{if @active_tab == "config", do: "border-primary text-primary", else: "border-transparent text-gray-500 hover:text-gray-700"}"}
+              class={"px-4 py-2 text-sm font-medium border-b-2 #{if @active_tab == "config", do: "border-primary text-primary", else: "border-transparent text-base-content/50 hover:text-base-content"}"}
             >
               Runtime Config
             </button>
             <button
               phx-click="switch_tab"
               phx-value-tab="heartbeats"
-              class={"px-4 py-3 text-sm font-medium border-b-2 #{if @active_tab == "heartbeats", do: "border-primary text-primary", else: "border-transparent text-gray-500 hover:text-gray-700"}"}
+              class={"px-4 py-2 text-sm font-medium border-b-2 #{if @active_tab == "heartbeats", do: "border-primary text-primary", else: "border-transparent text-base-content/50 hover:text-base-content"}"}
             >
               Heartbeats
             </button>
           </div>
         </div>
 
-        <%!-- Events Tab --%>
         <div :if={@active_tab == "events"}>
-          <table class="table w-full">
-            <thead>
+          <table class="table table-sm">
+            <thead class="bg-base-300">
               <tr>
-                <th>Time</th>
-                <th>Type</th>
-                <th>Severity</th>
-                <th>Message</th>
+                <th class="text-xs uppercase">Time</th>
+                <th class="text-xs uppercase">Type</th>
+                <th class="text-xs uppercase">Severity</th>
+                <th class="text-xs uppercase">Message</th>
               </tr>
             </thead>
             <tbody>
               <%= for event <- @events do %>
-                <tr class="hover">
+                <tr>
                   <td class="text-sm">{format_datetime(event.inserted_at)}</td>
                   <td><span class="badge badge-outline badge-sm">{event.event_type}</span></td>
                   <td><.severity_badge severity={event.severity} /></td>
@@ -358,59 +298,51 @@ defmodule SentinelCpWeb.NodesLive.Show do
               <% end %>
             </tbody>
           </table>
-          <%= if Enum.empty?(@events) do %>
-            <div class="p-8 text-center text-gray-500">
-              <p>No events recorded yet.</p>
-            </div>
-          <% end %>
+          <div :if={Enum.empty?(@events)} class="p-8 text-center text-base-content/50">
+            No events recorded yet.
+          </div>
         </div>
 
-        <%!-- Runtime Config Tab --%>
-        <div :if={@active_tab == "config"} class="p-4">
+        <div :if={@active_tab == "config"}>
           <%= if @runtime_config do %>
-            <div class="mb-3 flex items-center gap-4 text-sm text-gray-500">
+            <div class="mb-3 flex items-center gap-4 text-sm text-base-content/50">
               <span>Last updated: {format_datetime(@runtime_config.updated_at)}</span>
               <span class="font-mono">Hash: {String.slice(@runtime_config.config_hash, 0, 12)}…</span>
             </div>
-            <pre class="bg-base-200 rounded p-4 overflow-x-auto text-sm font-mono">{@runtime_config.config_kdl}</pre>
+            <pre class="bg-base-300 rounded p-4 overflow-x-auto text-sm font-mono">{@runtime_config.config_kdl}</pre>
           <% else %>
-            <div class="p-8 text-center text-gray-500">
-              <p>No runtime config reported yet.</p>
+            <div class="p-8 text-center text-base-content/50">
+              No runtime config reported yet.
             </div>
           <% end %>
         </div>
 
-        <%!-- Heartbeats Tab --%>
         <div :if={@active_tab == "heartbeats"}>
-          <table class="table w-full">
-            <thead>
+          <table class="table table-sm">
+            <thead class="bg-base-300">
               <tr>
-                <th>Timestamp</th>
-                <th>Health Status</th>
-                <th>Active Bundle</th>
-                <th>Staged Bundle</th>
+                <th class="text-xs uppercase">Timestamp</th>
+                <th class="text-xs uppercase">Health Status</th>
+                <th class="text-xs uppercase">Active Bundle</th>
+                <th class="text-xs uppercase">Staged Bundle</th>
               </tr>
             </thead>
             <tbody>
               <%= for hb <- @heartbeats do %>
-                <tr class="hover">
+                <tr>
                   <td class="text-sm">{format_datetime(hb.inserted_at)}</td>
-                  <td>
-                    <.health_badge health={hb.health} />
-                  </td>
+                  <td><.health_badge health={hb.health} /></td>
                   <td class="font-mono text-sm">{hb.active_bundle_id || "-"}</td>
                   <td class="font-mono text-sm">{hb.staged_bundle_id || "-"}</td>
                 </tr>
               <% end %>
             </tbody>
           </table>
-          <%= if Enum.empty?(@heartbeats) do %>
-            <div class="p-8 text-center text-gray-500">
-              <p>No heartbeats recorded yet.</p>
-            </div>
-          <% end %>
+          <div :if={Enum.empty?(@heartbeats)} class="p-8 text-center text-base-content/50">
+            No heartbeats recorded yet.
+          </div>
         </div>
-      </div>
+      </.k8s_section>
     </div>
     """
   end
@@ -426,7 +358,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
     assigns = assign(assigns, class: class, text: text)
 
     ~H"""
-    <span class={"badge #{@class}"}>{@text}</span>
+    <span class={"badge badge-sm #{@class}"}>{@text}</span>
     """
   end
 

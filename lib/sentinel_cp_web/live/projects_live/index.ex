@@ -119,8 +119,6 @@ defmodule SentinelCpWeb.ProjectsLive.Index do
   end
 
   defp mount_legacy(socket) do
-    # Legacy route: show all projects (for backward compat)
-    # If user belongs to exactly one org, redirect there
     user = socket.assigns.current_user
     orgs = Orgs.list_user_orgs(user.id)
 
@@ -146,28 +144,20 @@ defmodule SentinelCpWeb.ProjectsLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto px-4 py-8">
-      <div class="text-sm breadcrumbs mb-4">
-        <ul>
-          <li><.link navigate={~p"/orgs"}>Organizations</.link></li>
-          <li><.link navigate={~p"/orgs/#{@org.slug}"}>{@org.name}</.link></li>
-          <li>Projects</li>
-        </ul>
-      </div>
+    <div class="space-y-4">
+      <.table_toolbar>
+        <:filters>
+          <h1 class="text-xl font-bold">Projects</h1>
+        </:filters>
+        <:actions>
+          <button class="btn btn-primary btn-sm" phx-click="toggle_form">
+            New Project
+          </button>
+        </:actions>
+      </.table_toolbar>
 
-      <div class="flex justify-between items-center mb-6">
-        <div>
-          <h1 class="text-2xl font-bold">Projects</h1>
-          <p class="text-gray-500 mt-1">Manage your Sentinel deployments</p>
-        </div>
-        <button class="btn btn-primary btn-sm" phx-click="toggle_form">
-          New Project
-        </button>
-      </div>
-
-      <div :if={@show_form} class="card bg-base-200 mb-6">
-        <div class="card-body">
-          <h2 class="card-title text-lg">Create Project</h2>
+      <div :if={@show_form}>
+        <.k8s_section title="Create Project">
           <form phx-submit="create_project" class="space-y-4">
             <div class="form-control">
               <label class="label"><span class="label-text">Name</span></label>
@@ -175,7 +165,7 @@ defmodule SentinelCpWeb.ProjectsLive.Index do
                 type="text"
                 name="name"
                 required
-                class="input input-bordered w-full max-w-xs"
+                class="input input-bordered input-sm w-full max-w-xs"
                 placeholder="e.g. my-project"
               />
             </div>
@@ -184,7 +174,7 @@ defmodule SentinelCpWeb.ProjectsLive.Index do
               <textarea
                 name="description"
                 rows="3"
-                class="textarea textarea-bordered w-full max-w-md"
+                class="textarea textarea-bordered textarea-sm w-full max-w-md"
                 placeholder="Optional description"
               ></textarea>
             </div>
@@ -195,80 +185,96 @@ defmodule SentinelCpWeb.ProjectsLive.Index do
               </button>
             </div>
           </form>
-        </div>
+        </.k8s_section>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <%= for project <- @projects do %>
-          <%= if @editing_id == project.id do %>
-            <div class="bg-base-100 rounded-lg shadow p-6">
-              <form phx-submit="update_project" class="space-y-4">
-                <div class="form-control">
-                  <label class="label"><span class="label-text">Name</span></label>
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                    value={@edit_name}
-                    class="input input-bordered w-full"
-                  />
-                </div>
-                <div class="form-control">
-                  <label class="label"><span class="label-text">Description</span></label>
-                  <textarea
-                    name="description"
-                    rows="3"
-                    class="textarea textarea-bordered w-full"
-                  >{@edit_description}</textarea>
-                </div>
-                <div class="flex gap-2">
-                  <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                  <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_edit">
-                    Cancel
-                  </button>
-                </div>
-              </form>
+      <%!-- Inline edit form for a project --%>
+      <div :if={@editing_id}>
+        <.k8s_section title="Edit Project">
+          <form phx-submit="update_project" class="space-y-4">
+            <div class="form-control">
+              <label class="label"><span class="label-text">Name</span></label>
+              <input
+                type="text"
+                name="name"
+                required
+                value={@edit_name}
+                class="input input-bordered input-sm w-full max-w-xs"
+              />
             </div>
-          <% else %>
-            <div class="bg-base-100 rounded-lg shadow p-6 relative group">
-              <.link
-                navigate={~p"/orgs/#{@org.slug}/projects/#{project.slug}/nodes"}
-                class="block hover:opacity-80"
-              >
-                <h2 class="text-lg font-semibold">{project.name}</h2>
-                <p class="text-gray-500 text-sm mt-1">{project.description || "No description"}</p>
-                <div class="mt-4 text-sm text-gray-400">
-                  <span class="font-mono">{project.slug}</span>
-                </div>
-              </.link>
-              <div class="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  phx-click="edit"
-                  phx-value-id={project.id}
-                  class="btn btn-ghost btn-xs"
-                >
-                  Edit
-                </button>
-                <button
-                  phx-click="delete"
-                  phx-value-id={project.id}
-                  data-confirm="Are you sure you want to delete this project?"
-                  class="btn btn-ghost btn-xs text-error"
-                >
-                  Delete
-                </button>
-              </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text">Description</span></label>
+              <textarea
+                name="description"
+                rows="3"
+                class="textarea textarea-bordered textarea-sm w-full max-w-md"
+              >{@edit_description}</textarea>
             </div>
-          <% end %>
+            <div class="flex gap-2">
+              <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_edit">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </.k8s_section>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead class="bg-base-300">
+            <tr>
+              <th class="text-xs uppercase">Name</th>
+              <th class="text-xs uppercase">Description</th>
+              <th class="text-xs uppercase">Slug</th>
+              <th class="text-xs uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for project <- @projects do %>
+              <tr>
+                <td>
+                  <.link
+                    navigate={~p"/orgs/#{@org.slug}/projects/#{project.slug}/nodes"}
+                    class="flex items-center gap-2 text-primary hover:underline"
+                  >
+                    <.resource_badge type="project" />
+                    {project.name}
+                  </.link>
+                </td>
+                <td class="text-sm text-base-content/60">{project.description || "—"}</td>
+                <td class="font-mono text-sm text-base-content/50">{project.slug}</td>
+                <td>
+                  <div class="flex gap-1">
+                    <button
+                      phx-click="edit"
+                      phx-value-id={project.id}
+                      class="btn btn-ghost btn-xs"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      phx-click="delete"
+                      phx-value-id={project.id}
+                      data-confirm="Are you sure you want to delete this project?"
+                      class="btn btn-ghost btn-xs text-error"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+
+        <%= if Enum.empty?(@projects) do %>
+          <div class="text-center py-8 text-base-content/50">
+            <p>No projects yet.</p>
+            <p class="text-sm mt-2">Create a project to get started.</p>
+          </div>
         <% end %>
       </div>
-
-      <%= if Enum.empty?(@projects) do %>
-        <div class="bg-base-100 rounded-lg shadow p-8 text-center text-gray-500">
-          <p>No projects yet.</p>
-          <p class="text-sm mt-2">Create a project to get started.</p>
-        </div>
-      <% end %>
     </div>
     """
   end

@@ -53,6 +53,7 @@ defmodule SentinelCpWeb do
       use Phoenix.LiveView
 
       on_mount {SentinelCpWeb.LiveHelpers, :fetch_current_user}
+      on_mount {SentinelCpWeb.LiveHelpers, :attach_uri_hook}
 
       unquote(html_helpers())
     end

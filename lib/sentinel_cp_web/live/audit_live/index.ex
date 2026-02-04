@@ -68,7 +68,6 @@ defmodule SentinelCpWeb.AuditLive.Index do
 
   @impl true
   def handle_info({:audit_log_created, log_entry}, socket) do
-    # Prepend new entry if it matches current filters
     if matches_filters?(log_entry, socket.assigns.filters) and socket.assigns.page == 0 do
       logs = [log_entry | Enum.take(socket.assigns.logs, @per_page - 1)]
       {:noreply, assign(socket, logs: logs, total: socket.assigns.total + 1)}
@@ -80,77 +79,76 @@ defmodule SentinelCpWeb.AuditLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-7xl mx-auto px-4 py-6">
-      <h1 class="text-2xl font-bold mb-6">Audit Log</h1>
+    <div class="space-y-4">
+      <h1 class="text-xl font-bold">Audit Log</h1>
 
-      <form phx-change="filter" class="mb-6 flex gap-4">
-        <select name="action" class="border rounded px-3 py-2 text-sm">
-          <option value="">All actions</option>
-          <%= for action <- @available_actions do %>
-            <option value={action} selected={@filters[:action] == action}>{action}</option>
-          <% end %>
-        </select>
+      <.table_toolbar>
+        <:filters>
+          <form phx-change="filter" class="flex gap-3">
+            <select name="action" class="select select-bordered select-sm">
+              <option value="">All actions</option>
+              <%= for action <- @available_actions do %>
+                <option value={action} selected={@filters[:action] == action}>{action}</option>
+              <% end %>
+            </select>
 
-        <select name="resource_type" class="border rounded px-3 py-2 text-sm">
-          <option value="">All resources</option>
-          <%= for type <- @available_resource_types do %>
-            <option value={type} selected={@filters[:resource_type] == type}>{type}</option>
-          <% end %>
-        </select>
+            <select name="resource_type" class="select select-bordered select-sm">
+              <option value="">All resources</option>
+              <%= for type <- @available_resource_types do %>
+                <option value={type} selected={@filters[:resource_type] == type}>{type}</option>
+              <% end %>
+            </select>
 
-        <select name="actor_type" class="border rounded px-3 py-2 text-sm">
-          <option value="">All actors</option>
-          <option value="user" selected={@filters[:actor_type] == "user"}>User</option>
-          <option value="api_key" selected={@filters[:actor_type] == "api_key"}>API Key</option>
-          <option value="system" selected={@filters[:actor_type] == "system"}>System</option>
-          <option value="node" selected={@filters[:actor_type] == "node"}>Node</option>
-        </select>
-      </form>
+            <select name="actor_type" class="select select-bordered select-sm">
+              <option value="">All actors</option>
+              <option value="user" selected={@filters[:actor_type] == "user"}>User</option>
+              <option value="api_key" selected={@filters[:actor_type] == "api_key"}>API Key</option>
+              <option value="system" selected={@filters[:actor_type] == "system"}>System</option>
+              <option value="node" selected={@filters[:actor_type] == "node"}>Node</option>
+            </select>
+          </form>
+        </:filters>
+      </.table_toolbar>
 
-      <div class="bg-white shadow rounded-lg overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead class="bg-base-300">
             <tr>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actor</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Resource
-              </th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Resource ID
-              </th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+              <th class="text-xs uppercase">Time</th>
+              <th class="text-xs uppercase">Action</th>
+              <th class="text-xs uppercase">Actor</th>
+              <th class="text-xs uppercase">Resource</th>
+              <th class="text-xs uppercase">Resource ID</th>
+              <th class="text-xs uppercase">Project</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-200">
+          <tbody>
             <%= for log <- @logs do %>
-              <tr class="hover:bg-gray-50">
-                <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+              <tr>
+                <td class="text-sm text-base-content/60 whitespace-nowrap">
                   {Calendar.strftime(log.inserted_at, "%Y-%m-%d %H:%M:%S")}
                 </td>
-                <td class="px-4 py-3 text-sm font-medium">
-                  <span class={"px-2 py-1 rounded text-xs #{action_color(log.action)}"}>
+                <td>
+                  <span class={["badge badge-sm", action_badge_class(log.action)]}>
                     {log.action}
                   </span>
                 </td>
-                <td class="px-4 py-3 text-sm text-gray-500">
-                  <span class="text-xs text-gray-400">{log.actor_type}</span>
+                <td class="text-sm">
+                  <span class="text-xs text-base-content/50">{log.actor_type}</span>
                   <br />
                   <span class="text-xs font-mono">{short_id(log.actor_id)}</span>
                 </td>
-                <td class="px-4 py-3 text-sm text-gray-500">{log.resource_type}</td>
-                <td class="px-4 py-3 text-sm text-gray-500 font-mono">{short_id(log.resource_id)}</td>
-                <td class="px-4 py-3 text-sm text-gray-500 font-mono">{short_id(log.project_id)}</td>
+                <td class="text-sm">{log.resource_type}</td>
+                <td class="text-sm font-mono">{short_id(log.resource_id)}</td>
+                <td class="text-sm font-mono">{short_id(log.project_id)}</td>
               </tr>
             <% end %>
           </tbody>
         </table>
       </div>
-      
-    <!-- Pagination -->
-      <div class="mt-4 flex items-center justify-between">
-        <p class="text-sm text-gray-500">
+
+      <div class="flex items-center justify-between">
+        <p class="text-sm text-base-content/50">
           Showing {@page * @per_page + 1}-{min((@page + 1) * @per_page, @total)} of {@total}
         </p>
         <div class="flex gap-2">
@@ -158,7 +156,7 @@ defmodule SentinelCpWeb.AuditLive.Index do
             <button
               phx-click="page"
               phx-value-page={@page - 1}
-              class="px-3 py-1 border rounded text-sm hover:bg-gray-50"
+              class="btn btn-ghost btn-sm"
             >
               Previous
             </button>
@@ -167,7 +165,7 @@ defmodule SentinelCpWeb.AuditLive.Index do
             <button
               phx-click="page"
               phx-value-page={@page + 1}
-              class="px-3 py-1 border rounded text-sm hover:bg-gray-50"
+              class="btn btn-ghost btn-sm"
             >
               Next
             </button>
@@ -221,15 +219,15 @@ defmodule SentinelCpWeb.AuditLive.Index do
   defp short_id(nil), do: "-"
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8) <> "..."
 
-  defp action_color(action) do
+  defp action_badge_class(action) do
     cond do
-      String.contains?(action, "created") -> "bg-green-100 text-green-800"
-      String.contains?(action, "deleted") -> "bg-red-100 text-red-800"
-      String.contains?(action, "failed") -> "bg-red-100 text-red-800"
-      String.contains?(action, "login") -> "bg-blue-100 text-blue-800"
-      String.contains?(action, "logout") -> "bg-gray-100 text-gray-800"
-      String.contains?(action, "revoked") -> "bg-yellow-100 text-yellow-800"
-      true -> "bg-gray-100 text-gray-800"
+      String.contains?(action, "created") -> "badge-success"
+      String.contains?(action, "deleted") -> "badge-error"
+      String.contains?(action, "failed") -> "badge-error"
+      String.contains?(action, "login") -> "badge-info"
+      String.contains?(action, "logout") -> "badge-ghost"
+      String.contains?(action, "revoked") -> "badge-warning"
+      true -> "badge-ghost"
     end
   end
 

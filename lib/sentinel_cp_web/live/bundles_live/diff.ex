@@ -50,52 +50,43 @@ defmodule SentinelCpWeb.BundlesLive.Diff do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto px-4 py-8">
-      <div class="text-sm breadcrumbs mb-4">
-        <ul>
-          <li><.link navigate={~p"/orgs"}>Organizations</.link></li>
-          <li :if={@org}><.link navigate={~p"/orgs/#{@org.slug}/projects"}>{@org.name}</.link></li>
-          <li><.link navigate={project_bundles_path(@org, @project)}>Bundles</.link></li>
-          <li>Compare</li>
-        </ul>
-      </div>
+    <div class="space-y-4">
+      <h1 class="text-xl font-bold">Compare Bundles</h1>
 
-      <h1 class="text-2xl font-bold mb-6">Compare Bundles</h1>
+      <.table_toolbar>
+        <:filters>
+          <form phx-submit="compare" class="flex items-end gap-4">
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Bundle A (base)</span></label>
+              <select name="a" class="select select-bordered select-sm">
+                <option value="">Select bundle</option>
+                <option :for={b <- @bundles} value={b.id} selected={b.id == @bundle_a_id}>
+                  {b.version} ({b.status})
+                </option>
+              </select>
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Bundle B (new)</span></label>
+              <select name="b" class="select select-bordered select-sm">
+                <option value="">Select bundle</option>
+                <option :for={b <- @bundles} value={b.id} selected={b.id == @bundle_b_id}>
+                  {b.version} ({b.status})
+                </option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Compare</button>
+          </form>
+        </:filters>
+      </.table_toolbar>
 
-      <%!-- Bundle Selection --%>
-      <form phx-submit="compare" class="flex items-end gap-4 mb-6">
-        <div class="form-control">
-          <label class="label"><span class="label-text">Bundle A (base)</span></label>
-          <select name="a" class="select select-bordered select-sm">
-            <option value="">Select bundle</option>
-            <option :for={b <- @bundles} value={b.id} selected={b.id == @bundle_a_id}>
-              {b.version} ({b.status})
-            </option>
-          </select>
-        </div>
-        <div class="form-control">
-          <label class="label"><span class="label-text">Bundle B (new)</span></label>
-          <select name="b" class="select select-bordered select-sm">
-            <option value="">Select bundle</option>
-            <option :for={b <- @bundles} value={b.id} selected={b.id == @bundle_b_id}>
-              {b.version} ({b.status})
-            </option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm">Compare</button>
-      </form>
-
-      <%!-- Diff Stats --%>
-      <div :if={@diff_stats} class="flex gap-4 mb-4 text-sm">
+      <div :if={@diff_stats} class="flex gap-4 text-sm">
         <span class="text-success">+{@diff_stats.additions} additions</span>
         <span class="text-error">-{@diff_stats.deletions} deletions</span>
         <span class="text-base-content/50">{@diff_stats.unchanged} unchanged</span>
       </div>
 
-      <%!-- Config Diff --%>
-      <div :if={@diff_lines} class="card bg-base-200 mb-6">
-        <div class="card-body p-0">
-          <h2 class="card-title text-lg p-4 pb-2">Configuration Diff</h2>
+      <div :if={@diff_lines}>
+        <.k8s_section title="Configuration Diff">
           <div class="overflow-x-auto">
             <table class="table table-xs font-mono">
               <tbody>
@@ -114,13 +105,11 @@ defmodule SentinelCpWeb.BundlesLive.Diff do
               </tbody>
             </table>
           </div>
-        </div>
+        </.k8s_section>
       </div>
 
-      <%!-- Manifest Diff --%>
-      <div :if={@manifest_diff} class="card bg-base-200">
-        <div class="card-body">
-          <h2 class="card-title text-lg">Manifest Diff</h2>
+      <div :if={@manifest_diff}>
+        <.k8s_section title="Manifest Diff">
           <div :if={@manifest_diff.added != []} class="mb-2">
             <h3 class="text-sm font-medium text-success mb-1">Added files</h3>
             <ul class="list-disc list-inside text-sm font-mono">
@@ -145,7 +134,7 @@ defmodule SentinelCpWeb.BundlesLive.Diff do
           >
             No manifest changes.
           </div>
-        </div>
+        </.k8s_section>
       </div>
 
       <div :if={is_nil(@bundle_a) or is_nil(@bundle_b)} class="text-center py-12 text-base-content/50">
@@ -176,12 +165,6 @@ defmodule SentinelCpWeb.BundlesLive.Diff do
 
   defp resolve_org(%{"org_slug" => slug}), do: Orgs.get_org_by_slug(slug)
   defp resolve_org(_), do: nil
-
-  defp project_bundles_path(%{slug: org_slug}, project),
-    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/bundles"
-
-  defp project_bundles_path(nil, project),
-    do: ~p"/projects/#{project.slug}/bundles"
 
   defp diff_path(%{slug: org_slug}, project, a_id, b_id),
     do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/bundles/diff?a=#{a_id}&b=#{b_id}"

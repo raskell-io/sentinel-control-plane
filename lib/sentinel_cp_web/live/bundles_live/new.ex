@@ -97,103 +97,90 @@ defmodule SentinelCpWeb.BundlesLive.New do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto px-4 py-8 max-w-3xl">
-      <div class="text-sm breadcrumbs mb-4">
-        <ul>
-          <li><.link navigate={~p"/orgs"}>Organizations</.link></li>
-          <li :if={@org}><.link navigate={~p"/orgs/#{@org.slug}/projects"}>{@org.name}</.link></li>
-          <li><.link navigate={project_bundles_path(@org, @project)}>Bundles</.link></li>
-          <li>New</li>
-        </ul>
-      </div>
+    <div class="space-y-4 max-w-3xl">
+      <h1 class="text-xl font-bold">Create Bundle</h1>
 
-      <h1 class="text-2xl font-bold mb-6">Create Bundle</h1>
+      <.k8s_section>
+        <form phx-submit="create_bundle" phx-change="validate" class="space-y-6">
+          <div class="form-control">
+            <label class="label"><span class="label-text font-medium">Version</span></label>
+            <input
+              type="text"
+              name="version"
+              value={@form_version}
+              required
+              class="input input-bordered input-sm w-full max-w-xs"
+              placeholder="e.g. 1.0.0"
+            />
+            <label class="label">
+              <span class="label-text-alt text-base-content/50">Suggested: {@suggested_version}</span>
+            </label>
+          </div>
 
-      <form phx-submit="create_bundle" phx-change="validate" class="space-y-6">
-        <%!-- Version --%>
-        <div class="form-control">
-          <label class="label"><span class="label-text font-medium">Version</span></label>
-          <input
-            type="text"
-            name="version"
-            value={@form_version}
-            required
-            class="input input-bordered w-full max-w-xs"
-            placeholder="e.g. 1.0.0"
-          />
-          <label class="label">
-            <span class="label-text-alt text-base-content/50">Suggested: {@suggested_version}</span>
-          </label>
-        </div>
+          <div class="flex gap-1">
+            <button
+              type="button"
+              phx-click="switch_mode"
+              phx-value-mode="paste"
+              class={["btn btn-sm", @input_mode == "paste" && "btn-primary" || "btn-ghost"]}
+            >
+              Paste Config
+            </button>
+            <button
+              type="button"
+              phx-click="switch_mode"
+              phx-value-mode="upload"
+              class={["btn btn-sm", @input_mode == "upload" && "btn-primary" || "btn-ghost"]}
+            >
+              Upload File
+            </button>
+          </div>
 
-        <%!-- Input Mode Toggle --%>
-        <div class="flex gap-2">
-          <button
-            type="button"
-            phx-click="switch_mode"
-            phx-value-mode="paste"
-            class={["btn btn-sm", @input_mode == "paste" && "btn-primary" || "btn-ghost"]}
-          >
-            Paste Config
-          </button>
-          <button
-            type="button"
-            phx-click="switch_mode"
-            phx-value-mode="upload"
-            class={["btn btn-sm", @input_mode == "upload" && "btn-primary" || "btn-ghost"]}
-          >
-            Upload File
-          </button>
-        </div>
+          <div :if={@input_mode == "paste"} class="form-control">
+            <label class="label"><span class="label-text font-medium">KDL Configuration</span></label>
+            <textarea
+              name="config_source"
+              rows="16"
+              class="textarea textarea-bordered textarea-sm font-mono text-sm w-full"
+              placeholder="// Paste your sentinel.kdl config here"
+              phx-debounce="500"
+            >{@form_config}</textarea>
+          </div>
 
-        <%!-- Paste Mode --%>
-        <div :if={@input_mode == "paste"} class="form-control">
-          <label class="label"><span class="label-text font-medium">KDL Configuration</span></label>
-          <textarea
-            name="config_source"
-            rows="16"
-            class="textarea textarea-bordered font-mono text-sm w-full"
-            placeholder="// Paste your sentinel.kdl config here"
-            phx-debounce="500"
-          >{@form_config}</textarea>
-        </div>
+          <div :if={@input_mode == "upload"} class="form-control">
+            <label class="label"><span class="label-text font-medium">Upload .kdl File</span></label>
+            <.live_file_input upload={@uploads.config_file} class="file-input file-input-bordered file-input-sm w-full max-w-xs" />
+            <input type="hidden" name="config_source" value="" />
+            <%= for entry <- @uploads.config_file.entries do %>
+              <div class="flex items-center gap-2 mt-2 text-sm">
+                <span class="font-mono">{entry.client_name}</span>
+                <span class="text-base-content/50">({format_bytes(entry.client_size)})</span>
+              </div>
+            <% end %>
+          </div>
 
-        <%!-- Upload Mode --%>
-        <div :if={@input_mode == "upload"} class="form-control">
-          <label class="label"><span class="label-text font-medium">Upload .kdl File</span></label>
-          <.live_file_input upload={@uploads.config_file} class="file-input file-input-bordered w-full max-w-xs" />
-          <input type="hidden" name="config_source" value="" />
-          <%= for entry <- @uploads.config_file.entries do %>
-            <div class="flex items-center gap-2 mt-2 text-sm">
-              <span class="font-mono">{entry.client_name}</span>
-              <span class="text-base-content/50">({format_bytes(entry.client_size)})</span>
+          <div :if={@validation_result} class="alert">
+            <div :if={match?({:ok, _}, @validation_result)} class="text-success text-sm">
+              {elem(@validation_result, 1)}
             </div>
-          <% end %>
-        </div>
-
-        <%!-- Validation --%>
-        <div :if={@validation_result} class="alert">
-          <div :if={match?({:ok, _}, @validation_result)} class="text-success text-sm">
-            {elem(@validation_result, 1)}
+            <div :if={match?({:error, _}, @validation_result)} class="text-error text-sm">
+              {elem(@validation_result, 1)}
+            </div>
           </div>
-          <div :if={match?({:error, _}, @validation_result)} class="text-error text-sm">
-            {elem(@validation_result, 1)}
-          </div>
-        </div>
 
-        <%!-- Actions --%>
-        <div class="flex gap-2">
-          <button type="button" class="btn btn-outline btn-sm" phx-click="validate_config">
-            Validate
-          </button>
-          <button type="submit" class="btn btn-primary btn-sm">
-            Create & Compile
-          </button>
-          <.link navigate={project_bundles_path(@org, @project)} class="btn btn-ghost btn-sm">
-            Cancel
-          </.link>
-        </div>
-      </form>
+          <div class="flex gap-2">
+            <button type="button" class="btn btn-outline btn-sm" phx-click="validate_config">
+              Validate
+            </button>
+            <button type="submit" class="btn btn-primary btn-sm">
+              Create & Compile
+            </button>
+            <.link navigate={project_bundles_path(@org, @project)} class="btn btn-ghost btn-sm">
+              Cancel
+            </.link>
+          </div>
+        </form>
+      </.k8s_section>
     </div>
     """
   end

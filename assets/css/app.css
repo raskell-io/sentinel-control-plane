@@ -103,3 +103,117 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+
+/* K8s-style layout grid */
+.k8s-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: 3.5rem 1fr;
+  grid-template-areas:
+    "masthead masthead"
+    "sidebar main";
+  height: 100vh;
+}
+
+.k8s-masthead {
+  grid-area: masthead;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  border-bottom: 1px solid oklch(var(--color-base-300));
+  background: oklch(var(--color-base-200));
+  padding: 0 1rem;
+  gap: 1rem;
+}
+
+.k8s-sidebar {
+  grid-area: sidebar;
+  background: oklch(var(--color-base-200));
+  border-right: 1px solid oklch(var(--color-base-300));
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+.k8s-content {
+  grid-area: main;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .k8s-content {
+    padding: 1.5rem;
+  }
+}
+
+/* Sidebar nav items */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  transition: all 150ms ease;
+  color: oklch(var(--color-base-content) / 0.7);
+  border-left: 2px solid transparent;
+}
+
+.sidebar-item:hover {
+  background: oklch(var(--color-base-300));
+  color: oklch(var(--color-base-content));
+}
+
+.sidebar-item-active {
+  background: oklch(var(--color-primary) / 0.1);
+  color: oklch(var(--color-primary));
+  border-left-color: oklch(var(--color-primary));
+}
+
+.sidebar-section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: oklch(var(--color-base-content) / 0.4);
+  padding: 1rem 0.75rem 0.25rem;
+}
+
+/* Section title utility */
+.section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: oklch(var(--color-base-content) / 0.5);
+  margin-bottom: 0.75rem;
+}
+
+/* Responsive: collapsed sidebar */
+@media (max-width: 1024px) {
+  .k8s-layout {
+    grid-template-columns: 56px 1fr;
+  }
+  .sidebar-item .sidebar-label,
+  .sidebar-section-title {
+    display: none;
+  }
+  .sidebar-item {
+    justify-content: center;
+    padding: 0.5rem;
+    margin: 0 0.25rem;
+  }
+}
+
+/* Responsive: no sidebar */
+@media (max-width: 768px) {
+  .k8s-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "masthead"
+      "main";
+  }
+  .k8s-sidebar {
+    display: none;
+  }
+}

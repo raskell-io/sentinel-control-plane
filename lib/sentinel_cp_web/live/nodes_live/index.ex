@@ -151,19 +151,11 @@ defmodule SentinelCpWeb.NodesLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto px-4 py-8">
-      <div class="flex justify-between items-center mb-6">
-        <div>
-          <h1 class="text-2xl font-bold">{@project.name} / Nodes</h1>
-          <p class="text-gray-500 mt-1">Manage Sentinel proxy instances</p>
-        </div>
-        <button class="btn btn-primary btn-sm" phx-click="toggle_form">
-          Register Node
-        </button>
-      </div>
+    <div class="space-y-4">
+      <h1 class="text-xl font-bold">Nodes</h1>
 
-      <%!-- Node key banner (shown once after creation) --%>
-      <div :if={@created_node_key} class="alert alert-warning mb-6">
+      <%!-- Node key banner --%>
+      <div :if={@created_node_key} class="alert alert-warning">
         <div class="flex-1">
           <p class="font-semibold">Save this node key — it will not be shown again.</p>
           <pre class="mt-2 bg-base-300 p-3 rounded font-mono text-sm select-all">{@created_node_key}</pre>
@@ -171,10 +163,34 @@ defmodule SentinelCpWeb.NodesLive.Index do
         <button class="btn btn-ghost btn-sm" phx-click="dismiss_key">Dismiss</button>
       </div>
 
+      <.stat_strip>
+        <:stat label="Total" value={to_string(Enum.count(@nodes))} color="info" />
+        <:stat label="Online" value={to_string(Map.get(@stats, "online", 0))} color="success" />
+        <:stat label="Offline" value={to_string(Map.get(@stats, "offline", 0))} color="error" />
+        <:stat label="Unknown" value={to_string(Map.get(@stats, "unknown", 0))} />
+      </.stat_strip>
+
+      <.table_toolbar>
+        <:filters>
+          <form phx-change="filter" class="flex gap-2">
+            <select name="status" class="select select-bordered select-sm">
+              <option value="">All statuses</option>
+              <option value="online" selected={@status_filter == "online"}>Online</option>
+              <option value="offline" selected={@status_filter == "offline"}>Offline</option>
+              <option value="unknown" selected={@status_filter == "unknown"}>Unknown</option>
+            </select>
+          </form>
+        </:filters>
+        <:actions>
+          <button class="btn btn-primary btn-sm" phx-click="toggle_form">
+            Register Node
+          </button>
+        </:actions>
+      </.table_toolbar>
+
       <%!-- Create Node Form --%>
-      <div :if={@show_form} class="card bg-base-200 mb-6">
-        <div class="card-body">
-          <h2 class="card-title text-lg">Register Node</h2>
+      <div :if={@show_form}>
+        <.k8s_section title="Register Node">
           <form phx-submit="create_node" class="space-y-4">
             <div class="form-control">
               <label class="label"><span class="label-text">Name</span></label>
@@ -182,40 +198,25 @@ defmodule SentinelCpWeb.NodesLive.Index do
                 type="text"
                 name="name"
                 required
-                class="input input-bordered w-full max-w-xs"
+                class="input input-bordered input-sm w-full max-w-xs"
                 placeholder="e.g. edge-node-01"
               />
               <label class="label">
-                <span class="label-text-alt">Alphanumeric, underscore, dot, or hyphen</span>
+                <span class="label-text-alt text-base-content/50">Alphanumeric, underscore, dot, or hyphen</span>
               </label>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div class="form-control">
                 <label class="label"><span class="label-text">Hostname</span></label>
-                <input
-                  type="text"
-                  name="hostname"
-                  class="input input-bordered w-full"
-                  placeholder="optional"
-                />
+                <input type="text" name="hostname" class="input input-bordered input-sm w-full" placeholder="optional" />
               </div>
               <div class="form-control">
                 <label class="label"><span class="label-text">IP Address</span></label>
-                <input
-                  type="text"
-                  name="ip"
-                  class="input input-bordered w-full"
-                  placeholder="optional"
-                />
+                <input type="text" name="ip" class="input input-bordered input-sm w-full" placeholder="optional" />
               </div>
               <div class="form-control">
                 <label class="label"><span class="label-text">Version</span></label>
-                <input
-                  type="text"
-                  name="version"
-                  class="input input-bordered w-full"
-                  placeholder="optional"
-                />
+                <input type="text" name="version" class="input input-bordered input-sm w-full" placeholder="optional" />
               </div>
             </div>
             <div class="form-control">
@@ -223,70 +224,46 @@ defmodule SentinelCpWeb.NodesLive.Index do
               <textarea
                 name="labels"
                 rows="3"
-                class="textarea textarea-bordered font-mono text-sm w-full max-w-md"
+                class="textarea textarea-bordered textarea-sm font-mono text-sm w-full max-w-md"
                 placeholder={"env=production\nregion=us-east-1"}
               ></textarea>
             </div>
             <div class="flex gap-2">
               <button type="submit" class="btn btn-primary btn-sm">Register</button>
-              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_form">
-                Cancel
-              </button>
+              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_form">Cancel</button>
             </div>
           </form>
-        </div>
+        </.k8s_section>
       </div>
 
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-4 gap-4 mb-6">
-        <.stat_card label="Total" value={Enum.count(@nodes)} color="blue" />
-        <.stat_card label="Online" value={Map.get(@stats, "online", 0)} color="green" />
-        <.stat_card label="Offline" value={Map.get(@stats, "offline", 0)} color="red" />
-        <.stat_card label="Unknown" value={Map.get(@stats, "unknown", 0)} color="gray" />
-      </div>
-
-      <!-- Filters -->
-      <div class="flex gap-4 mb-4">
-        <form phx-change="filter" class="flex gap-2">
-          <select name="status" class="select select-bordered select-sm">
-            <option value="">All statuses</option>
-            <option value="online" selected={@status_filter == "online"}>Online</option>
-            <option value="offline" selected={@status_filter == "offline"}>Offline</option>
-            <option value="unknown" selected={@status_filter == "unknown"}>Unknown</option>
-          </select>
-        </form>
-      </div>
-
-      <!-- Nodes Table -->
-      <div class="bg-base-100 rounded-lg shadow overflow-hidden">
-        <table class="table w-full">
-          <thead>
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead class="bg-base-300">
             <tr>
-              <th>Name</th>
-              <th>Status</th>
-              <th>Version</th>
-              <th>IP</th>
-              <th>Last Seen</th>
-              <th>Actions</th>
+              <th class="text-xs uppercase">Name</th>
+              <th class="text-xs uppercase">Status</th>
+              <th class="text-xs uppercase">Version</th>
+              <th class="text-xs uppercase">IP</th>
+              <th class="text-xs uppercase">Last Seen</th>
+              <th class="text-xs uppercase">Actions</th>
             </tr>
           </thead>
           <tbody>
             <%= for node <- @nodes do %>
-              <tr class="hover">
+              <tr>
                 <td>
                   <.link
                     navigate={node_show_path(@org, @project, node)}
-                    class="font-medium text-primary hover:underline"
+                    class="flex items-center gap-2 text-primary hover:underline"
                   >
+                    <.resource_badge type="node" />
                     {node.name}
                   </.link>
                 </td>
-                <td>
-                  <.status_badge status={node.status} />
-                </td>
+                <td><.status_badge status={node.status} /></td>
                 <td class="font-mono text-sm">{node.version || "-"}</td>
                 <td class="font-mono text-sm">{node.ip || "-"}</td>
-                <td class="text-sm text-gray-500">
+                <td class="text-sm text-base-content/60">
                   {if node.last_seen_at, do: format_relative_time(node.last_seen_at), else: "Never"}
                 </td>
                 <td>
@@ -305,33 +282,12 @@ defmodule SentinelCpWeb.NodesLive.Index do
         </table>
 
         <%= if Enum.empty?(@nodes) do %>
-          <div class="p-8 text-center text-gray-500">
+          <div class="p-8 text-center text-base-content/50">
             <p>No nodes found.</p>
-            <p class="text-sm mt-2">
-              Register a node above or let nodes self-register via the API.
-            </p>
+            <p class="text-sm mt-2">Register a node above or let nodes self-register via the API.</p>
           </div>
         <% end %>
       </div>
-    </div>
-    """
-  end
-
-  defp stat_card(assigns) do
-    color_class =
-      case assigns.color do
-        "green" -> "text-success"
-        "red" -> "text-error"
-        "blue" -> "text-info"
-        _ -> "text-gray-500"
-      end
-
-    assigns = assign(assigns, :color_class, color_class)
-
-    ~H"""
-    <div class="bg-base-100 rounded-lg shadow p-4">
-      <div class="text-sm text-gray-500">{@label}</div>
-      <div class={"text-2xl font-bold #{@color_class}"}>{@value}</div>
     </div>
     """
   end
@@ -347,7 +303,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
     assigns = assign(assigns, class: class, text: text)
 
     ~H"""
-    <span class={"badge #{@class}"}>{@text}</span>
+    <span class={"badge badge-sm #{@class}"}>{@text}</span>
     """
   end
 

@@ -20,6 +20,13 @@ defmodule SentinelCpWeb.LiveHelpers do
     {:cont, assign_current_user(socket, session)}
   end
 
+  def on_mount(:attach_uri_hook, _params, _session, socket) do
+    {:cont,
+     attach_hook(socket, :save_uri, :handle_params, fn _params, uri, socket ->
+       {:cont, assign(socket, :current_uri, uri)}
+     end)}
+  end
+
   def on_mount(:require_admin, _params, session, socket) do
     socket = assign_current_user(socket, session)
 

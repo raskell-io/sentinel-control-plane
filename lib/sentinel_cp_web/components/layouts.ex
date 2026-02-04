@@ -5,26 +5,10 @@ defmodule SentinelCpWeb.Layouts do
   """
   use SentinelCpWeb, :html
 
-  # Embed all files in layouts/* within this module.
-  # The default root.html.heex file contains the HTML
-  # skeleton of your application, namely HTML headers
-  # and other static content.
+  alias SentinelCp.{Orgs, Projects}
+
   embed_templates "layouts/*"
 
-  @doc """
-  Renders your app layout.
-
-  This function is typically invoked from every template,
-  and it often contains your application menu, sidebar,
-  or similar.
-
-  ## Examples
-
-      <Layouts.app flash={@flash}>
-        <h1>Content</h1>
-      </Layouts.app>
-
-  """
   attr :flash, :map, required: true, doc: "the map of flash messages"
 
   attr :current_scope, :map,
@@ -34,50 +18,235 @@ defmodule SentinelCpWeb.Layouts do
   slot :inner_block, required: true
 
   def app(assigns) do
-    ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
+    assigns =
+      assigns
+      |> assign_new(:current_user, fn -> nil end)
+      |> assign_new(:current_uri, fn -> "" end)
+
+    if assigns.current_user do
+      ~H"""
+      <div class="k8s-layout">
+        <.masthead current_user={@current_user} current_uri={@current_uri} />
+        <.sidebar_nav current_uri={@current_uri} />
+        <main class="k8s-content">
+          {render_slot(@inner_block)}
+        </main>
       </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
+      <.flash_group flash={@flash} />
+      """
+    else
+      ~H"""
+      <main class="flex items-center justify-center min-h-screen bg-base-100">
+        <div class="w-full max-w-md p-6">
+          {render_slot(@inner_block)}
+        </div>
+      </main>
+      <.flash_group flash={@flash} />
+      """
+    end
+  end
+
+  attr :current_user, :map, required: true
+  attr :current_uri, :string, required: true
+
+  defp masthead(assigns) do
+    {org_name, org_slug, project_name, project_slug} = parse_context(assigns.current_uri)
+
+    assigns =
+      assign(assigns,
+        org_name: org_name,
+        org_slug: org_slug,
+        project_name: project_name,
+        project_slug: project_slug
+      )
+
+    ~H"""
+    <header class="k8s-masthead">
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <img src={~p"/images/logo.svg"} width="28" />
+        <span class="font-bold text-sm hidden sm:inline">Sentinel CP</span>
+      </div>
+
+      <div class="flex-1 flex items-center gap-1 text-sm text-base-content/60 min-w-0 overflow-hidden">
+        <span :if={@org_name}>
+          <.link navigate={~p"/orgs/#{@org_slug}/projects"} class="hover:text-base-content">
+            {@org_name}
+          </.link>
+        </span>
+        <span :if={@org_name && @project_name} class="text-base-content/30">/</span>
+        <span :if={@project_name}>
+          <.link
+            navigate={~p"/orgs/#{@org_slug}/projects/#{@project_slug}/nodes"}
+            class="hover:text-base-content"
+          >
+            {@project_name}
+          </.link>
+        </span>
+      </div>
+
+      <div class="flex items-center gap-3 flex-shrink-0">
+        <.theme_toggle />
+        <span class="text-xs text-base-content/60 hidden sm:inline">{@current_user.email}</span>
+        <.link href={~p"/session"} method="delete" class="text-xs text-base-content/50 hover:text-base-content">
+          Logout
+        </.link>
       </div>
     </header>
-
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
-      </div>
-    </main>
-
-    <.flash_group flash={@flash} />
     """
+  end
+
+  attr :current_uri, :string, required: true
+
+  defp sidebar_nav(assigns) do
+    {_org_name, org_slug, _project_name, project_slug} = parse_context(assigns.current_uri)
+    has_project = org_slug != nil && project_slug != nil
+    has_org = org_slug != nil
+    path = URI.parse(assigns.current_uri).path || ""
+
+    assigns =
+      assign(assigns,
+        org_slug: org_slug,
+        project_slug: project_slug,
+        has_project: has_project,
+        has_org: has_org,
+        path: path
+      )
+
+    ~H"""
+    <nav class="k8s-sidebar">
+      <div :if={@has_project}>
+        <div class="sidebar-section-title">Workloads</div>
+        <.sidebar_link
+          path={~p"/orgs/#{@org_slug}/projects/#{@project_slug}/nodes"}
+          icon="hero-server-stack"
+          label="Nodes"
+          current={@path}
+          match="/nodes"
+        />
+        <.sidebar_link
+          path={~p"/orgs/#{@org_slug}/projects/#{@project_slug}/bundles"}
+          icon="hero-cube"
+          label="Bundles"
+          current={@path}
+          match="/bundles"
+        />
+        <.sidebar_link
+          path={~p"/orgs/#{@org_slug}/projects/#{@project_slug}/rollouts"}
+          icon="hero-arrow-path-rounded-square"
+          label="Rollouts"
+          current={@path}
+          match="/rollouts"
+        />
+      </div>
+
+      <div :if={@has_org}>
+        <div class="sidebar-section-title">Organization</div>
+        <.sidebar_link
+          path={~p"/orgs/#{@org_slug}/dashboard"}
+          icon="hero-squares-2x2"
+          label="Dashboard"
+          current={@path}
+          match="/dashboard"
+        />
+        <.sidebar_link
+          path={~p"/orgs/#{@org_slug}/projects"}
+          icon="hero-folder"
+          label="Projects"
+          current={@path}
+          match_exact={~p"/orgs/#{@org_slug}/projects"}
+        />
+      </div>
+
+      <div>
+        <div class="sidebar-section-title">Management</div>
+        <.sidebar_link
+          path={~p"/orgs"}
+          icon="hero-building-office"
+          label="Organizations"
+          current={@path}
+          match_exact={~p"/orgs"}
+        />
+        <.sidebar_link
+          path={~p"/audit"}
+          icon="hero-clipboard-document-list"
+          label="Audit Log"
+          current={@path}
+          match="/audit"
+        />
+      </div>
+    </nav>
+    """
+  end
+
+  attr :path, :string, required: true
+  attr :icon, :string, required: true
+  attr :label, :string, required: true
+  attr :current, :string, required: true
+  attr :match, :string, default: nil
+  attr :match_exact, :string, default: nil
+
+  defp sidebar_link(assigns) do
+    active =
+      cond do
+        assigns.match_exact -> assigns.current == assigns.match_exact
+        assigns.match -> String.contains?(assigns.current, assigns.match)
+        true -> false
+      end
+
+    assigns = assign(assigns, :active, active)
+
+    ~H"""
+    <.link navigate={@path} class={["sidebar-item", @active && "sidebar-item-active"]}>
+      <.icon name={@icon} class="size-5 flex-shrink-0" />
+      <span class="sidebar-label">{@label}</span>
+    </.link>
+    """
+  end
+
+  defp parse_context(uri) when is_binary(uri) do
+    path = URI.parse(uri).path || ""
+    parse_context_from_path(path)
+  end
+
+  defp parse_context(_), do: {nil, nil, nil, nil}
+
+  defp parse_context_from_path(path) do
+    org_match = Regex.run(~r{/orgs/([^/]+)}, path)
+    project_match = Regex.run(~r{/projects/([^/]+)}, path)
+
+    {org_slug, org_name} =
+      case org_match do
+        [_, slug] ->
+          case Orgs.get_org_by_slug(slug) do
+            nil -> {slug, slug}
+            org -> {slug, org.name}
+          end
+
+        _ ->
+          {nil, nil}
+      end
+
+    {project_slug, project_name} =
+      case project_match do
+        [_, slug] when org_slug != nil ->
+          if slug in ~w(new diff) do
+            {nil, nil}
+          else
+            case Projects.get_project_by_slug(slug) do
+              nil -> {slug, slug}
+              project -> {slug, project.name}
+            end
+          end
+
+        _ ->
+          {nil, nil}
+      end
+
+    {org_name, org_slug, project_name, project_slug}
   end
 
   @doc """
   Shows the flash group with standard titles and content.
-
-  ## Examples
-
-      <.flash_group flash={@flash} />
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
@@ -117,8 +286,6 @@ defmodule SentinelCpWeb.Layouts do
 
   @doc """
   Provides dark vs light theme toggle based on themes defined in app.css.
-
-  See <head> in root.html.heex which applies the theme before page load.
   """
   def theme_toggle(assigns) do
     ~H"""

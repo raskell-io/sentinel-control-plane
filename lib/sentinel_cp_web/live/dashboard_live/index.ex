@@ -41,126 +41,85 @@ defmodule SentinelCpWeb.DashboardLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto px-4 py-8">
-      <div class="text-sm breadcrumbs mb-4">
-        <ul>
-          <li><.link navigate={~p"/orgs"}>Organizations</.link></li>
-          <li><.link navigate={~p"/orgs/#{@org.slug}"}>{@org.name}</.link></li>
-          <li>Dashboard</li>
-        </ul>
-      </div>
+    <div class="space-y-4">
+      <h1 class="text-xl font-bold">Dashboard</h1>
 
-      <h1 class="text-2xl font-bold mb-6">Dashboard</h1>
-
-      <%!-- Fleet Stats --%>
-      <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        <.stat_card title="Projects" value={@overview.project_count} />
-        <.stat_card title="Nodes Online" value={@overview.node_stats.online} color="success" />
-        <.stat_card title="Nodes Offline" value={@overview.node_stats.offline} color="error" />
-        <.stat_card title="Active Rollouts" value={@overview.active_rollouts} color="warning" />
-        <.stat_card
-          title="Success Rate"
+      <.stat_strip>
+        <:stat label="Projects" value={to_string(@overview.project_count)} />
+        <:stat label="Nodes Online" value={to_string(@overview.node_stats.online)} color="success" />
+        <:stat label="Nodes Offline" value={to_string(@overview.node_stats.offline)} color="error" />
+        <:stat label="Active Rollouts" value={to_string(@overview.active_rollouts)} color="warning" />
+        <:stat
+          label="Success Rate"
           value={if @overview.deployment_success_rate, do: "#{@overview.deployment_success_rate}%", else: "—"}
           color="info"
         />
-      </div>
+      </.stat_strip>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <%!-- Node Health Chart (server-side SVG) --%>
-        <div class="card bg-base-200">
-          <div class="card-body">
-            <h2 class="card-title text-lg">Fleet Health</h2>
-            <.node_health_chart stats={@overview.node_stats} />
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <.k8s_section title="Fleet Health">
+          <.node_health_chart stats={@overview.node_stats} />
+        </.k8s_section>
+
+        <.k8s_section title="Projects">
+          <table class="table table-sm">
+            <thead class="bg-base-300">
+              <tr>
+                <th class="text-xs uppercase">Name</th>
+                <th class="text-xs uppercase">Nodes</th>
+                <th class="text-xs uppercase"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={project <- @projects}>
+                <td>
+                  <span class="flex items-center gap-2">
+                    <.resource_badge type="project" />
+                    {project.name}
+                  </span>
+                </td>
+                <td class="text-sm text-base-content/70">—</td>
+                <td>
+                  <.link
+                    navigate={~p"/orgs/#{@org.slug}/projects/#{project.slug}/nodes"}
+                    class="btn btn-ghost btn-xs"
+                  >
+                    View
+                  </.link>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div :if={@projects == []} class="text-base-content/50 text-sm">
+            No projects yet.
           </div>
-        </div>
+        </.k8s_section>
 
-        <%!-- Projects Overview --%>
-        <div class="card bg-base-200">
-          <div class="card-body">
-            <h2 class="card-title text-lg">Projects</h2>
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Nodes</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr :for={project <- @projects}>
-                  <td>{project.name}</td>
-                  <td class="text-sm text-base-content/70">—</td>
-                  <td>
-                    <.link
-                      navigate={~p"/orgs/#{@org.slug}/projects/#{project.slug}/nodes"}
-                      class="btn btn-ghost btn-xs"
-                    >
-                      View
-                    </.link>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <div :if={@projects == []} class="text-base-content/50 text-sm">
-              No projects yet.
-            </div>
+        <.k8s_section title="Recent Activity" class="lg:col-span-2">
+          <table class="table table-sm">
+            <thead class="bg-base-300">
+              <tr>
+                <th class="text-xs uppercase">Action</th>
+                <th class="text-xs uppercase">Resource</th>
+                <th class="text-xs uppercase">Actor</th>
+                <th class="text-xs uppercase">When</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={entry <- @activity}>
+                <td class="text-sm">{entry.action}</td>
+                <td class="text-sm font-mono">
+                  {entry.resource_type}/{entry.resource_id |> String.slice(0, 8)}
+                </td>
+                <td class="text-sm">{entry.actor_type}</td>
+                <td class="text-sm">{format_relative(entry.inserted_at)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div :if={@activity == []} class="text-base-content/50 text-sm">
+            No recent activity.
           </div>
-        </div>
-
-        <%!-- Recent Activity --%>
-        <div class="card bg-base-200 lg:col-span-2">
-          <div class="card-body">
-            <h2 class="card-title text-lg">Recent Activity</h2>
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Action</th>
-                  <th>Resource</th>
-                  <th>Actor</th>
-                  <th>When</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr :for={entry <- @activity}>
-                  <td class="text-sm">{entry.action}</td>
-                  <td class="text-sm font-mono">
-                    {entry.resource_type}/{entry.resource_id |> String.slice(0, 8)}
-                  </td>
-                  <td class="text-sm">{entry.actor_type}</td>
-                  <td class="text-sm">{format_relative(entry.inserted_at)}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div :if={@activity == []} class="text-base-content/50 text-sm">
-              No recent activity.
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  defp stat_card(assigns) do
-    color = Map.get(assigns, :color, nil)
-
-    assigns =
-      assign(assigns,
-        text_class:
-          case color do
-            "success" -> "text-success"
-            "error" -> "text-error"
-            "warning" -> "text-warning"
-            "info" -> "text-info"
-            _ -> ""
-          end
-      )
-
-    ~H"""
-    <div class="card bg-base-200">
-      <div class="card-body p-4">
-        <div class="text-xs text-base-content/60 uppercase tracking-wide">{@title}</div>
-        <div class={"text-2xl font-bold #{@text_class}"}>{@value}</div>
+        </.k8s_section>
       </div>
     </div>
     """

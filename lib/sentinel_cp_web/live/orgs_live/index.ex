@@ -48,20 +48,16 @@ defmodule SentinelCpWeb.OrgsLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto px-4 py-8">
-      <div class="flex justify-between items-center mb-6">
-        <div>
-          <h1 class="text-2xl font-bold">Organizations</h1>
-          <p class="text-gray-500 mt-1">Select an organization to manage</p>
-        </div>
+    <div class="space-y-4">
+      <div class="flex justify-between items-center">
+        <h1 class="text-xl font-bold">Organizations</h1>
         <button class="btn btn-primary btn-sm" phx-click="toggle_form">
           New Organization
         </button>
       </div>
 
-      <div :if={@show_form} class="card bg-base-200 mb-6">
-        <div class="card-body">
-          <h2 class="card-title text-lg">Create Organization</h2>
+      <div :if={@show_form}>
+        <.k8s_section title="Create Organization">
           <form phx-submit="create_org" class="space-y-4">
             <div class="form-control">
               <label class="label"><span class="label-text">Name</span></label>
@@ -69,7 +65,7 @@ defmodule SentinelCpWeb.OrgsLive.Index do
                 type="text"
                 name="name"
                 required
-                class="input input-bordered w-full max-w-xs"
+                class="input input-bordered input-sm w-full max-w-xs"
                 placeholder="e.g. My Organization"
               />
             </div>
@@ -80,20 +76,21 @@ defmodule SentinelCpWeb.OrgsLive.Index do
               </button>
             </div>
           </form>
-        </div>
+        </.k8s_section>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <%= for {org, role} <- @org_memberships do %>
           <.link
             navigate={~p"/orgs/#{org.slug}/projects"}
-            class="bg-base-100 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
+            class="bg-base-200 rounded border border-base-300 p-6 hover:border-primary/50 transition-colors"
           >
             <div class="flex items-center gap-2">
+              <.resource_badge type="org" />
               <h2 class="text-lg font-semibold">{org.name}</h2>
               <span class="badge badge-sm badge-ghost">{role}</span>
             </div>
-            <div class="mt-4 text-sm text-gray-400">
+            <div class="mt-4 text-sm text-base-content/50">
               <span class="font-mono">{org.slug}</span>
             </div>
           </.link>
@@ -101,9 +98,11 @@ defmodule SentinelCpWeb.OrgsLive.Index do
       </div>
 
       <%= if Enum.empty?(@org_memberships) do %>
-        <div class="bg-base-100 rounded-lg shadow p-8 text-center text-gray-500">
-          <p>You are not a member of any organizations.</p>
-        </div>
+        <.k8s_section>
+          <div class="text-center text-base-content/50 py-4">
+            <p>You are not a member of any organizations.</p>
+          </div>
+        </.k8s_section>
       <% end %>
     </div>
     """

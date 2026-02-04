@@ -102,27 +102,20 @@ defmodule SentinelCpWeb.BundlesLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto px-4 py-8">
-      <div class="flex items-center justify-between mb-6">
-        <div>
-          <div class="text-sm breadcrumbs mb-2">
-            <ul>
-              <li><.link navigate={~p"/orgs"}>Organizations</.link></li>
-              <li :if={@org}><.link navigate={~p"/orgs/#{@org.slug}/projects"}>{@org.name}</.link></li>
-              <li><.link navigate={project_nodes_path(@org, @project)}>{@project.name}</.link></li>
-              <li>Bundles</li>
-            </ul>
-          </div>
-          <h1 class="text-2xl font-bold">Bundles</h1>
-        </div>
-        <button class="btn btn-primary btn-sm" phx-click="toggle_upload">
-          New Bundle
-        </button>
-      </div>
+    <div class="space-y-4">
+      <.table_toolbar>
+        <:filters>
+          <h1 class="text-xl font-bold">Bundles</h1>
+        </:filters>
+        <:actions>
+          <.link navigate={bundle_new_path(@org, @project)} class="btn btn-primary btn-sm">
+            New Bundle
+          </.link>
+        </:actions>
+      </.table_toolbar>
 
-      <div :if={@show_upload} class="card bg-base-200 mb-6">
-        <div class="card-body">
-          <h2 class="card-title text-lg">Create Bundle</h2>
+      <div :if={@show_upload}>
+        <.k8s_section title="Quick Create Bundle">
           <form phx-submit="create_bundle" class="space-y-4">
             <div class="form-control">
               <label class="label"><span class="label-text">Version</span></label>
@@ -130,7 +123,7 @@ defmodule SentinelCpWeb.BundlesLive.Index do
                 type="text"
                 name="version"
                 required
-                class="input input-bordered w-full max-w-xs"
+                class="input input-bordered input-sm w-full max-w-xs"
                 placeholder="e.g. 1.0.0"
               />
             </div>
@@ -140,35 +133,41 @@ defmodule SentinelCpWeb.BundlesLive.Index do
                 name="config_source"
                 required
                 rows="12"
-                class="textarea textarea-bordered font-mono text-sm w-full"
+                class="textarea textarea-bordered textarea-sm font-mono text-sm w-full"
                 placeholder="// Paste your sentinel.kdl config here"
               ></textarea>
             </div>
             <div class="flex gap-2">
               <button type="submit" class="btn btn-primary btn-sm">Create & Compile</button>
-              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_upload">
-                Cancel
-              </button>
+              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_upload">Cancel</button>
             </div>
           </form>
-        </div>
+        </.k8s_section>
       </div>
 
       <div class="overflow-x-auto">
-        <table class="table">
-          <thead>
+        <table class="table table-sm">
+          <thead class="bg-base-300">
             <tr>
-              <th>Version</th>
-              <th>Status</th>
-              <th>Size</th>
-              <th>Checksum</th>
-              <th>Created</th>
-              <th></th>
+              <th class="text-xs uppercase">Version</th>
+              <th class="text-xs uppercase">Status</th>
+              <th class="text-xs uppercase">Size</th>
+              <th class="text-xs uppercase">Checksum</th>
+              <th class="text-xs uppercase">Created</th>
+              <th class="text-xs uppercase"></th>
             </tr>
           </thead>
           <tbody>
-            <tr :for={bundle <- @bundles} class="hover">
-              <td class="font-mono">{bundle.version}</td>
+            <tr :for={bundle <- @bundles}>
+              <td>
+                <.link
+                  navigate={bundle_show_path(@org, @project, bundle)}
+                  class="flex items-center gap-2 text-primary hover:underline font-mono"
+                >
+                  <.resource_badge type="bundle" />
+                  {bundle.version}
+                </.link>
+              </td>
               <td>
                 <span class={[
                   "badge badge-sm",
@@ -219,17 +218,17 @@ defmodule SentinelCpWeb.BundlesLive.Index do
   defp resolve_org(%{"org_slug" => slug}), do: Orgs.get_org_by_slug(slug)
   defp resolve_org(_), do: nil
 
-  defp project_nodes_path(%{slug: org_slug}, project),
-    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/nodes"
-
-  defp project_nodes_path(nil, project),
-    do: ~p"/projects/#{project.slug}/nodes"
-
   defp bundle_show_path(%{slug: org_slug}, project, bundle),
     do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/bundles/#{bundle.id}"
 
   defp bundle_show_path(nil, project, bundle),
     do: ~p"/projects/#{project.slug}/bundles/#{bundle.id}"
+
+  defp bundle_new_path(%{slug: org_slug}, project),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/bundles/new"
+
+  defp bundle_new_path(nil, project),
+    do: ~p"/projects/#{project.slug}/bundles/new"
 
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 1)} KB"
