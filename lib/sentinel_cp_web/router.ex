@@ -154,6 +154,8 @@ defmodule SentinelCpWeb.Router do
     post "/:node_id/heartbeat", NodeController, :heartbeat
     get "/:node_id/bundles/latest", NodeController, :latest_bundle
     post "/:node_id/token", NodeController, :token
+    post "/:node_id/events", NodeController, :events
+    post "/:node_id/config", NodeController, :config
   end
 
   # Control plane API — Nodes (read)

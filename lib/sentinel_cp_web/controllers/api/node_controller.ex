@@ -159,6 +159,85 @@ defmodule SentinelCpWeb.Api.NodeController do
     end
   end
 
+  @doc """
+  POST /api/v1/nodes/:node_id/events
+
+  Records events from a node. Accepts a single event or a batch.
+  Requires node authentication.
+  """
+  def events(conn, %{"events" => events_list}) when is_list(events_list) do
+    node = conn.assigns.current_node
+
+    events_attrs =
+      Enum.map(events_list, fn event ->
+        %{
+          node_id: node.id,
+          event_type: event["event_type"],
+          severity: event["severity"] || "info",
+          message: event["message"],
+          metadata: event["metadata"] || %{}
+        }
+      end)
+
+    case Nodes.create_node_events(events_attrs) do
+      {:ok, created} ->
+        conn
+        |> put_status(:created)
+        |> json(%{status: "ok", count: length(created)})
+
+      {:error, changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: format_errors(changeset)})
+    end
+  end
+
+  def events(conn, %{"event_type" => _} = params) do
+    node = conn.assigns.current_node
+
+    attrs = %{
+      node_id: node.id,
+      event_type: params["event_type"],
+      severity: params["severity"] || "info",
+      message: params["message"],
+      metadata: params["metadata"] || %{}
+    }
+
+    case Nodes.create_node_event(attrs) do
+      {:ok, _event} ->
+        conn
+        |> put_status(:created)
+        |> json(%{status: "ok", count: 1})
+
+      {:error, changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: format_errors(changeset)})
+    end
+  end
+
+  @doc """
+  POST /api/v1/nodes/:node_id/config
+
+  Upserts the runtime KDL config for a node.
+  Requires node authentication.
+  """
+  def config(conn, %{"config_kdl" => config_kdl}) do
+    node = conn.assigns.current_node
+
+    case Nodes.upsert_runtime_config(node.id, config_kdl) do
+      {:ok, runtime_config} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{status: "ok", config_hash: runtime_config.config_hash})
+
+      {:error, changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: format_errors(changeset)})
+    end
+  end
+
   # Private helpers
 
   defp get_project(slug) do

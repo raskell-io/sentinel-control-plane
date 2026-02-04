@@ -29,6 +29,8 @@ defmodule SentinelCpWeb.NodesLive.Show do
             end
 
             heartbeats = Nodes.list_recent_heartbeats(node.id, limit: 20)
+            events = Nodes.list_node_events(node.id)
+            runtime_config = Nodes.get_runtime_config(node.id)
 
             {:ok,
              socket
@@ -36,6 +38,9 @@ defmodule SentinelCpWeb.NodesLive.Show do
              |> assign(:project, project)
              |> assign(:node, node)
              |> assign(:heartbeats, heartbeats)
+             |> assign(:events, events)
+             |> assign(:runtime_config, runtime_config)
+             |> assign(:active_tab, "events")
              |> assign(:show_label_form, false)
              |> assign(:page_title, "#{node.name} - #{project.name}")}
 
@@ -67,13 +72,31 @@ defmodule SentinelCpWeb.NodesLive.Show do
   def handle_info(:refresh, socket) do
     node = Nodes.get_node!(socket.assigns.node.id)
     heartbeats = Nodes.list_recent_heartbeats(node.id, limit: 20)
-    {:noreply, assign(socket, node: node, heartbeats: heartbeats)}
+    events = Nodes.list_node_events(node.id)
+    runtime_config = Nodes.get_runtime_config(node.id)
+
+    {:noreply,
+     assign(socket,
+       node: node,
+       heartbeats: heartbeats,
+       events: events,
+       runtime_config: runtime_config
+     )}
   end
 
   @impl true
   def handle_info({:node_updated, node}, socket) do
     heartbeats = Nodes.list_recent_heartbeats(node.id, limit: 20)
-    {:noreply, assign(socket, node: node, heartbeats: heartbeats)}
+    events = Nodes.list_node_events(node.id)
+    runtime_config = Nodes.get_runtime_config(node.id)
+
+    {:noreply,
+     assign(socket,
+       node: node,
+       heartbeats: heartbeats,
+       events: events,
+       runtime_config: runtime_config
+     )}
   end
 
   @impl true
@@ -127,6 +150,10 @@ defmodule SentinelCpWeb.NodesLive.Show do
     end
   end
 
+  def handle_event("switch_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, active_tab: tab)}
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -145,6 +172,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
           <h1 class="text-2xl font-bold flex items-center gap-3">
             {@node.name}
             <.status_badge status={@node.status} />
+            <span :if={@node.version} class="badge badge-outline font-mono">v{@node.version}</span>
           </h1>
           <p class="text-gray-500 mt-1">
             Registered {format_datetime(@node.registered_at)}
@@ -280,38 +308,108 @@ defmodule SentinelCpWeb.NodesLive.Show do
         </div>
       </div>
       
-    <!-- Recent Heartbeats -->
+    <!-- Tabbed Section: Events / Runtime Config / Heartbeats -->
       <div class="mt-6 bg-base-100 rounded-lg shadow overflow-hidden">
-        <div class="p-4 border-b">
-          <h2 class="text-lg font-semibold">Recent Heartbeats</h2>
-        </div>
-        <table class="table w-full">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Health Status</th>
-              <th>Active Bundle</th>
-              <th>Staged Bundle</th>
-            </tr>
-          </thead>
-          <tbody>
-            <%= for hb <- @heartbeats do %>
-              <tr class="hover">
-                <td class="text-sm">{format_datetime(hb.inserted_at)}</td>
-                <td>
-                  <.health_badge health={hb.health} />
-                </td>
-                <td class="font-mono text-sm">{hb.active_bundle_id || "-"}</td>
-                <td class="font-mono text-sm">{hb.staged_bundle_id || "-"}</td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-        <%= if Enum.empty?(@heartbeats) do %>
-          <div class="p-8 text-center text-gray-500">
-            <p>No heartbeats recorded yet.</p>
+        <div class="border-b">
+          <div class="flex">
+            <button
+              phx-click="switch_tab"
+              phx-value-tab="events"
+              class={"px-4 py-3 text-sm font-medium border-b-2 #{if @active_tab == "events", do: "border-primary text-primary", else: "border-transparent text-gray-500 hover:text-gray-700"}"}
+            >
+              Events
+            </button>
+            <button
+              phx-click="switch_tab"
+              phx-value-tab="config"
+              class={"px-4 py-3 text-sm font-medium border-b-2 #{if @active_tab == "config", do: "border-primary text-primary", else: "border-transparent text-gray-500 hover:text-gray-700"}"}
+            >
+              Runtime Config
+            </button>
+            <button
+              phx-click="switch_tab"
+              phx-value-tab="heartbeats"
+              class={"px-4 py-3 text-sm font-medium border-b-2 #{if @active_tab == "heartbeats", do: "border-primary text-primary", else: "border-transparent text-gray-500 hover:text-gray-700"}"}
+            >
+              Heartbeats
+            </button>
           </div>
-        <% end %>
+        </div>
+
+        <%!-- Events Tab --%>
+        <div :if={@active_tab == "events"}>
+          <table class="table w-full">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Severity</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for event <- @events do %>
+                <tr class="hover">
+                  <td class="text-sm">{format_datetime(event.inserted_at)}</td>
+                  <td><span class="badge badge-outline badge-sm">{event.event_type}</span></td>
+                  <td><.severity_badge severity={event.severity} /></td>
+                  <td class="text-sm">{event.message}</td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+          <%= if Enum.empty?(@events) do %>
+            <div class="p-8 text-center text-gray-500">
+              <p>No events recorded yet.</p>
+            </div>
+          <% end %>
+        </div>
+
+        <%!-- Runtime Config Tab --%>
+        <div :if={@active_tab == "config"} class="p-4">
+          <%= if @runtime_config do %>
+            <div class="mb-3 flex items-center gap-4 text-sm text-gray-500">
+              <span>Last updated: {format_datetime(@runtime_config.updated_at)}</span>
+              <span class="font-mono">Hash: {String.slice(@runtime_config.config_hash, 0, 12)}…</span>
+            </div>
+            <pre class="bg-base-200 rounded p-4 overflow-x-auto text-sm font-mono">{@runtime_config.config_kdl}</pre>
+          <% else %>
+            <div class="p-8 text-center text-gray-500">
+              <p>No runtime config reported yet.</p>
+            </div>
+          <% end %>
+        </div>
+
+        <%!-- Heartbeats Tab --%>
+        <div :if={@active_tab == "heartbeats"}>
+          <table class="table w-full">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Health Status</th>
+                <th>Active Bundle</th>
+                <th>Staged Bundle</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for hb <- @heartbeats do %>
+                <tr class="hover">
+                  <td class="text-sm">{format_datetime(hb.inserted_at)}</td>
+                  <td>
+                    <.health_badge health={hb.health} />
+                  </td>
+                  <td class="font-mono text-sm">{hb.active_bundle_id || "-"}</td>
+                  <td class="font-mono text-sm">{hb.staged_bundle_id || "-"}</td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+          <%= if Enum.empty?(@heartbeats) do %>
+            <div class="p-8 text-center text-gray-500">
+              <p>No heartbeats recorded yet.</p>
+            </div>
+          <% end %>
+        </div>
       </div>
     </div>
     """
@@ -341,6 +439,23 @@ defmodule SentinelCpWeb.NodesLive.Show do
         "degraded" -> {"badge-warning", "Degraded"}
         "unhealthy" -> {"badge-error", "Unhealthy"}
         _ -> {"badge-ghost", "Unknown"}
+      end
+
+    assigns = assign(assigns, class: class, text: text)
+
+    ~H"""
+    <span class={"badge badge-sm #{@class}"}>{@text}</span>
+    """
+  end
+
+  defp severity_badge(assigns) do
+    {class, text} =
+      case assigns.severity do
+        "error" -> {"badge-error", "error"}
+        "warn" -> {"badge-warning", "warn"}
+        "info" -> {"badge-info", "info"}
+        "debug" -> {"badge-ghost", "debug"}
+        _ -> {"badge-ghost", assigns.severity || "unknown"}
       end
 
     assigns = assign(assigns, class: class, text: text)

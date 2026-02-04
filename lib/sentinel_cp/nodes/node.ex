@@ -32,6 +32,8 @@ defmodule SentinelCp.Nodes.Node do
 
     belongs_to :project, SentinelCp.Projects.Project
     has_many :heartbeats, SentinelCp.Nodes.NodeHeartbeat
+    has_many :events, SentinelCp.Nodes.NodeEvent
+    has_one :runtime_config, SentinelCp.Nodes.NodeRuntimeConfig
 
     timestamps(type: :utc_datetime)
   end

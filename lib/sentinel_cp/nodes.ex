@@ -5,7 +5,7 @@ defmodule SentinelCp.Nodes do
 
   import Ecto.Query, warn: false
   alias SentinelCp.Repo
-  alias SentinelCp.Nodes.{Node, NodeHeartbeat}
+  alias SentinelCp.Nodes.{Node, NodeEvent, NodeHeartbeat, NodeRuntimeConfig}
 
   @stale_threshold_seconds 120
 
@@ -186,6 +186,96 @@ defmodule SentinelCp.Nodes do
       limit: ^limit
     )
     |> Repo.all()
+  end
+
+  ## Node Events
+
+  @doc """
+  Creates a single node event.
+  """
+  def create_node_event(attrs) do
+    %NodeEvent{}
+    |> NodeEvent.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Creates multiple node events in a transaction.
+  """
+  def create_node_events(events_attrs) when is_list(events_attrs) do
+    Repo.transaction(fn ->
+      Enum.map(events_attrs, fn attrs ->
+        case create_node_event(attrs) do
+          {:ok, event} -> event
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+      end)
+    end)
+  end
+
+  @doc """
+  Lists recent events for a node, ordered by most recent first.
+  """
+  def list_node_events(node_id, limit \\ 50) do
+    from(e in NodeEvent,
+      where: e.node_id == ^node_id,
+      order_by: [desc: e.inserted_at],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Cleans up old event records.
+  Keeps only the most recent records per node.
+  """
+  def cleanup_old_events(keep_count \\ 500) do
+    subquery =
+      from(e in NodeEvent,
+        select: %{
+          id: e.id,
+          row_num: over(row_number(), partition_by: e.node_id, order_by: [desc: e.inserted_at])
+        }
+      )
+
+    from(e in NodeEvent,
+      join: s in subquery(subquery),
+      on: e.id == s.id,
+      where: s.row_num > ^keep_count
+    )
+    |> Repo.delete_all()
+  end
+
+  ## Node Runtime Config
+
+  @doc """
+  Upserts the runtime config for a node.
+  Computes a SHA256 hash of the KDL content.
+  """
+  def upsert_runtime_config(node_id, config_kdl) do
+    config_hash =
+      :crypto.hash(:sha256, config_kdl)
+      |> Base.encode16(case: :lower)
+
+    attrs = %{
+      node_id: node_id,
+      config_kdl: config_kdl,
+      config_hash: config_hash
+    }
+
+    %NodeRuntimeConfig{}
+    |> NodeRuntimeConfig.changeset(attrs)
+    |> Repo.insert(
+      on_conflict: {:replace, [:config_kdl, :config_hash, :updated_at]},
+      conflict_target: :node_id
+    )
+  end
+
+  @doc """
+  Gets the runtime config for a node.
+  """
+  def get_runtime_config(node_id) do
+    Repo.get_by(NodeRuntimeConfig, node_id: node_id)
   end
 
   @doc """
