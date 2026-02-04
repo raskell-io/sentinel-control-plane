@@ -33,16 +33,23 @@ defmodule SentinelCp.RolloutsFixtures do
     project = attrs[:project] || SentinelCp.ProjectsFixtures.project_fixture()
     bundle = attrs[:bundle] || compiled_bundle_fixture(%{project: project})
 
-    {:ok, rollout} =
-      Rollouts.create_rollout(%{
+    create_attrs =
+      %{
         project_id: project.id,
         bundle_id: bundle.id,
         target_selector: attrs[:target_selector] || %{"type" => "all"},
         strategy: attrs[:strategy] || "rolling",
         batch_size: attrs[:batch_size] || 1,
         progress_deadline_seconds: attrs[:progress_deadline_seconds] || 600
-      })
+      }
+      |> maybe_put(:max_unavailable, attrs[:max_unavailable])
+      |> maybe_put(:health_gates, attrs[:health_gates])
+
+    {:ok, rollout} = Rollouts.create_rollout(create_attrs)
 
     rollout
   end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

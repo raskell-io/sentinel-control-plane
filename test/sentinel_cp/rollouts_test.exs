@@ -419,6 +419,191 @@ defmodule SentinelCp.RolloutsTest do
 
       assert {:ok, :not_running} = Rollouts.tick_rollout(rollout)
     end
+
+    test "pauses rollout when max_unavailable exceeded" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+      node1 = node_fixture(%{project: project})
+      node2 = node_fixture(%{project: project})
+
+      rollout =
+        rollout_fixture(%{
+          project: project,
+          bundle: bundle,
+          batch_size: 2,
+          max_unavailable: 1
+        })
+
+      {:ok, _} = Rollouts.plan_rollout(rollout)
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_started} = Rollouts.tick_rollout(running)
+
+      # Mark both nodes as offline (exceeds max_unavailable of 1)
+      import Ecto.Query
+
+      from(n in SentinelCp.Nodes.Node, where: n.id in ^[node1.id, node2.id])
+      |> Repo.update_all(set: [status: "offline"])
+
+      running = Rollouts.get_rollout!(rollout.id)
+      assert {:ok, :max_unavailable_exceeded} = Rollouts.tick_rollout(running)
+
+      paused = Rollouts.get_rollout!(rollout.id)
+      assert paused.state == "paused"
+      assert paused.error["reason"] == "max_unavailable_exceeded"
+    end
+
+    test "progresses step when available nodes activate and unavailable within max_unavailable" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+      node1 = node_fixture(%{project: project})
+      node2 = node_fixture(%{project: project})
+      node3 = node_fixture(%{project: project})
+
+      rollout =
+        rollout_fixture(%{
+          project: project,
+          bundle: bundle,
+          batch_size: 3,
+          max_unavailable: 1
+        })
+
+      # Disable health gates for simpler assertions
+      import Ecto.Query
+
+      from(r in Rollout, where: r.id == ^rollout.id)
+      |> Repo.update_all(set: [health_gates: %{}])
+
+      {:ok, _} = Rollouts.plan_rollout(rollout)
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_started} = Rollouts.tick_rollout(running)
+
+      # Mark node3 as offline (within max_unavailable of 1)
+      from(n in SentinelCp.Nodes.Node, where: n.id == ^node3.id)
+      |> Repo.update_all(set: [status: "offline"])
+
+      # Only activate the 2 available nodes
+      from(n in SentinelCp.Nodes.Node, where: n.id in ^[node1.id, node2.id])
+      |> Repo.update_all(set: [active_bundle_id: bundle.id])
+
+      # Should progress to verifying (2 activated >= 3 - 1 required)
+      running = Rollouts.get_rollout!(rollout.id)
+      assert {:ok, :step_verifying} = Rollouts.tick_rollout(running)
+    end
+
+    test "completes rollout with unavailable nodes within max_unavailable" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+      node1 = node_fixture(%{project: project})
+      node2 = node_fixture(%{project: project})
+
+      rollout =
+        rollout_fixture(%{
+          project: project,
+          bundle: bundle,
+          batch_size: 2,
+          max_unavailable: 1
+        })
+
+      import Ecto.Query
+
+      from(r in Rollout, where: r.id == ^rollout.id)
+      |> Repo.update_all(set: [health_gates: %{}])
+
+      {:ok, _} = Rollouts.plan_rollout(rollout)
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_started} = Rollouts.tick_rollout(running)
+
+      # Mark node2 offline, activate node1
+      from(n in SentinelCp.Nodes.Node, where: n.id == ^node2.id)
+      |> Repo.update_all(set: [status: "offline"])
+
+      from(n in SentinelCp.Nodes.Node, where: n.id == ^node1.id)
+      |> Repo.update_all(set: [active_bundle_id: bundle.id])
+
+      # Progress through verifying → completed
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_verifying} = Rollouts.tick_rollout(running)
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_completed} = Rollouts.tick_rollout(running)
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, %Rollout{state: "completed"}} = Rollouts.tick_rollout(running)
+    end
+
+    test "error_rate health gate blocks step completion" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+      node = node_fixture(%{project: project})
+
+      rollout =
+        rollout_fixture(%{project: project, bundle: bundle})
+
+      # Set health gates with error rate threshold
+      import Ecto.Query
+
+      from(r in Rollout, where: r.id == ^rollout.id)
+      |> Repo.update_all(set: [health_gates: %{"max_error_rate" => 0.05}])
+
+      {:ok, _} = Rollouts.plan_rollout(rollout)
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_started} = Rollouts.tick_rollout(running)
+
+      # Simulate node activation
+      from(n in SentinelCp.Nodes.Node, where: n.id == ^node.id)
+      |> Repo.update_all(set: [active_bundle_id: bundle.id])
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_verifying} = Rollouts.tick_rollout(running)
+
+      # Add heartbeat with high error rate
+      SentinelCp.Nodes.record_heartbeat(node, %{
+        health: %{"status" => "healthy"},
+        metrics: %{"error_rate" => 0.10}
+      })
+
+      # Should not complete — error rate too high, waits at deadline check
+      running = Rollouts.get_rollout!(rollout.id)
+      assert {:ok, :waiting} = Rollouts.tick_rollout(running)
+    end
+
+    test "latency health gate blocks step completion" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+      node = node_fixture(%{project: project})
+
+      rollout =
+        rollout_fixture(%{project: project, bundle: bundle})
+
+      import Ecto.Query
+
+      from(r in Rollout, where: r.id == ^rollout.id)
+      |> Repo.update_all(set: [health_gates: %{"max_latency_ms" => 100}])
+
+      {:ok, _} = Rollouts.plan_rollout(rollout)
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_started} = Rollouts.tick_rollout(running)
+
+      from(n in SentinelCp.Nodes.Node, where: n.id == ^node.id)
+      |> Repo.update_all(set: [active_bundle_id: bundle.id])
+
+      running = Rollouts.get_rollout!(rollout.id)
+      {:ok, :step_verifying} = Rollouts.tick_rollout(running)
+
+      # Add heartbeat with high latency
+      SentinelCp.Nodes.record_heartbeat(node, %{
+        health: %{"status" => "healthy"},
+        metrics: %{"latency_p99_ms" => 500}
+      })
+
+      running = Rollouts.get_rollout!(rollout.id)
+      assert {:ok, :waiting} = Rollouts.tick_rollout(running)
+    end
   end
 
   describe "get_rollout_progress/1" do

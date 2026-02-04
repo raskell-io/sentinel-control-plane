@@ -1,7 +1,11 @@
 defmodule SentinelCp.WebhooksTest do
   use SentinelCp.DataCase
 
+  import Mox
+
   alias SentinelCp.Webhooks
+
+  setup :verify_on_exit!
 
   describe "verify_signature/2" do
     test "returns true for valid signature" do
@@ -39,6 +43,17 @@ defmodule SentinelCp.WebhooksTest do
           github_branch: "main",
           config_path: "sentinel.kdl"
         })
+
+      config_content = """
+      system {
+        workers 4
+      }
+      """
+
+      expect(SentinelCp.Webhooks.GitHubClient.Mock, :fetch_file, fn
+        "raskell-io/test-config", "abc123def456abc123def456abc123def456abc1", "sentinel.kdl" ->
+          config_content
+      end)
 
       payload = %{
         "ref" => "refs/heads/main",

@@ -1,7 +1,11 @@
 defmodule SentinelCpWeb.Api.WebhookControllerTest do
   use SentinelCpWeb.ConnCase
 
+  import Mox
+
   @secret "test_webhook_secret"
+
+  setup :verify_on_exit!
 
   defp sign_payload(payload) do
     mac =
@@ -30,6 +34,11 @@ defmodule SentinelCpWeb.Api.WebhookControllerTest do
           github_branch: "main",
           config_path: "sentinel.kdl"
         })
+
+      expect(SentinelCp.Webhooks.GitHubClient.Mock, :fetch_file, fn
+        "raskell-io/webhook-test", "deadbeef12345678", "sentinel.kdl" ->
+          "system { workers 4 }"
+      end)
 
       payload =
         push_payload("raskell-io/webhook-test", "main", "deadbeef12345678", ["sentinel.kdl"])

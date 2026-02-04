@@ -92,9 +92,9 @@ defmodule SentinelCp.Webhooks do
     changed_files = extract_changed_files(payload)
 
     if config_path_changed?(changed_files, config_path) do
-      # Use the head commit message as a version hint, but the actual config
-      # will need to be fetched. For now, use the commit message from the payload.
-      get_in(payload, ["head_commit", "message"])
+      repo = get_in(payload, ["repository", "full_name"])
+      ref = get_in(payload, ["head_commit", "id"])
+      SentinelCp.Webhooks.GitHubClient.impl().fetch_file(repo, ref, config_path)
     else
       nil
     end
@@ -115,16 +115,13 @@ defmodule SentinelCp.Webhooks do
     end)
   end
 
-  defp create_git_bundle(project, _commit_message, source) do
-    # Generate a version from the commit SHA (short form)
+  defp create_git_bundle(project, config_source, source) do
     version = "git-#{String.slice(source.ref, 0, 8)}"
 
-    # For GitOps, the config source would be fetched from the repo.
-    # For now, we create a placeholder bundle that will be populated by the compile worker.
     attrs = %{
       project_id: project.id,
       version: version,
-      config_source: "# Pending fetch from #{source.repo}@#{source.ref}",
+      config_source: config_source,
       source_type: "git",
       source_ref: source.ref,
       source_branch: source.branch,

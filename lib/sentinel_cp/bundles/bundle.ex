@@ -22,6 +22,7 @@ defmodule SentinelCp.Bundles.Bundle do
     field :manifest, :map, default: %{}
     field :compiler_output, :string
     field :risk_level, :string, default: "low"
+    field :risk_reasons, {:array, :string}, default: []
     field :signature, :binary
     field :signing_key_id, :string
     field :created_by_id, :binary_id
@@ -71,10 +72,13 @@ defmodule SentinelCp.Bundles.Bundle do
       :signature,
       :signing_key_id,
       :sbom,
-      :sbom_format
+      :sbom_format,
+      :risk_level,
+      :risk_reasons
     ])
     |> validate_required([:status])
     |> validate_inclusion(:status, @statuses)
+    |> validate_inclusion(:risk_level, @risk_levels)
   end
 
   def status_changeset(bundle, status) do

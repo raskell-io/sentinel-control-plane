@@ -327,6 +327,8 @@ defmodule SentinelCp.Rollouts do
   end
 
   defp check_step_running(rollout, step) do
+    total = length(step.node_ids)
+
     # Check if all nodes in this step have active_bundle_id == bundle_id
     activated_count =
       from(n in Nodes.Node,
@@ -334,35 +336,65 @@ defmodule SentinelCp.Rollouts do
       )
       |> Repo.aggregate(:count)
 
-    if activated_count == length(step.node_ids) do
-      # All nodes activated — transition to verifying
-      {:ok, _step} =
-        step
-        |> RolloutStep.state_changeset("verifying")
-        |> Repo.update()
+    # Check max_unavailable: count nodes that are offline or have failed
+    unavailable_count = count_unavailable_nodes(step.node_ids)
 
-      # Update node bundle statuses
-      from(nbs in NodeBundleStatus,
-        where: nbs.rollout_id == ^rollout.id and nbs.node_id in ^step.node_ids
-      )
-      |> Repo.update_all(
-        set: [
-          state: "activating",
-          last_report_at: DateTime.utc_now() |> DateTime.truncate(:second)
-        ]
-      )
+    # With max_unavailable, the step can progress when all available nodes
+    # have activated, tolerating up to max_unavailable offline nodes.
+    required =
+      if rollout.max_unavailable > 0 do
+        max(total - rollout.max_unavailable, 0)
+      else
+        total
+      end
 
-      broadcast_rollout_update(rollout)
-      {:ok, :step_verifying}
-    else
-      # Check deadline
-      check_step_deadline(rollout, step)
+    cond do
+      rollout.max_unavailable > 0 and unavailable_count > rollout.max_unavailable ->
+        # Too many unavailable nodes — pause the rollout
+        {:ok, _} =
+          rollout
+          |> Rollout.state_changeset("paused",
+            error: %{
+              "reason" => "max_unavailable_exceeded",
+              "unavailable" => unavailable_count,
+              "max_unavailable" => rollout.max_unavailable
+            }
+          )
+          |> Repo.update()
+
+        broadcast_rollout_update(rollout)
+        {:ok, :max_unavailable_exceeded}
+
+      activated_count >= required and activated_count > 0 ->
+        # Enough nodes activated — transition to verifying
+        {:ok, _step} =
+          step
+          |> RolloutStep.state_changeset("verifying")
+          |> Repo.update()
+
+        # Update node bundle statuses
+        from(nbs in NodeBundleStatus,
+          where: nbs.rollout_id == ^rollout.id and nbs.node_id in ^step.node_ids
+        )
+        |> Repo.update_all(
+          set: [
+            state: "activating",
+            last_report_at: DateTime.utc_now() |> DateTime.truncate(:second)
+          ]
+        )
+
+        broadcast_rollout_update(rollout)
+        {:ok, :step_verifying}
+
+      true ->
+        # Check deadline
+        check_step_deadline(rollout, step)
     end
   end
 
   defp check_step_verifying(rollout, step) do
-    # Check health gates
-    if check_health_gates(rollout, step) do
+    # Check health gates (only for available nodes when max_unavailable is set)
+    if check_health_gates(rollout, step, available_node_ids(rollout, step)) do
       # Step completed
       {:ok, _step} =
         step
@@ -385,26 +417,91 @@ defmodule SentinelCp.Rollouts do
     end
   end
 
-  defp check_health_gates(rollout, step) do
+  defp check_health_gates(rollout, _step, check_node_ids) do
     gates = rollout.health_gates || %{}
 
-    if Map.get(gates, "heartbeat_healthy", false) do
-      # Check that all nodes in step have a recent healthy heartbeat
-      Enum.all?(step.node_ids, fn node_id ->
-        latest =
-          from(h in Nodes.NodeHeartbeat,
-            where: h.node_id == ^node_id,
-            order_by: [desc: h.inserted_at],
-            limit: 1
-          )
-          |> Repo.one()
+    # All enabled gates must pass for available nodes
+    check_heartbeat_gate(gates, check_node_ids) and
+      check_error_rate_gate(gates, check_node_ids) and
+      check_latency_gate(gates, check_node_ids) and
+      check_cpu_gate(gates, check_node_ids) and
+      check_memory_gate(gates, check_node_ids)
+  end
 
+  defp check_heartbeat_gate(gates, node_ids) do
+    if Map.get(gates, "heartbeat_healthy", false) do
+      Enum.all?(node_ids, fn node_id ->
+        latest = latest_heartbeat(node_id)
         latest != nil && get_in(latest.health, ["status"]) == "healthy"
       end)
     else
-      # No health gates — always pass
       true
     end
+  end
+
+  defp check_error_rate_gate(gates, node_ids) do
+    threshold = Map.get(gates, "max_error_rate")
+
+    if is_number(threshold) do
+      Enum.all?(node_ids, fn node_id ->
+        latest = latest_heartbeat(node_id)
+        error_rate = get_in(latest || %{}, [Access.key(:metrics, %{}), "error_rate"]) || 0.0
+        error_rate <= threshold
+      end)
+    else
+      true
+    end
+  end
+
+  defp check_latency_gate(gates, node_ids) do
+    threshold = Map.get(gates, "max_latency_ms")
+
+    if is_number(threshold) do
+      Enum.all?(node_ids, fn node_id ->
+        latest = latest_heartbeat(node_id)
+        latency = get_in(latest || %{}, [Access.key(:metrics, %{}), "latency_p99_ms"]) || 0.0
+        latency <= threshold
+      end)
+    else
+      true
+    end
+  end
+
+  defp check_cpu_gate(gates, node_ids) do
+    threshold = Map.get(gates, "max_cpu_percent")
+
+    if is_number(threshold) do
+      Enum.all?(node_ids, fn node_id ->
+        latest = latest_heartbeat(node_id)
+        cpu = get_in(latest || %{}, [Access.key(:metrics, %{}), "cpu_percent"]) || 0.0
+        cpu <= threshold
+      end)
+    else
+      true
+    end
+  end
+
+  defp check_memory_gate(gates, node_ids) do
+    threshold = Map.get(gates, "max_memory_percent")
+
+    if is_number(threshold) do
+      Enum.all?(node_ids, fn node_id ->
+        latest = latest_heartbeat(node_id)
+        mem = get_in(latest || %{}, [Access.key(:metrics, %{}), "memory_percent"]) || 0.0
+        mem <= threshold
+      end)
+    else
+      true
+    end
+  end
+
+  defp latest_heartbeat(node_id) do
+    from(h in Nodes.NodeHeartbeat,
+      where: h.node_id == ^node_id,
+      order_by: [desc: h.inserted_at],
+      limit: 1
+    )
+    |> Repo.one()
   end
 
   defp check_step_deadline(rollout, step) do
@@ -471,6 +568,29 @@ defmodule SentinelCp.Rollouts do
 
   defp chunk_into_batches(node_ids, _strategy, batch_size) do
     Enum.chunk_every(node_ids, batch_size)
+  end
+
+  defp count_unavailable_nodes(node_ids) do
+    from(n in Nodes.Node,
+      where: n.id in ^node_ids and n.status in ~w(offline unknown)
+    )
+    |> Repo.aggregate(:count)
+  end
+
+  defp available_node_ids(rollout, step) do
+    if rollout.max_unavailable > 0 do
+      unavailable =
+        from(n in Nodes.Node,
+          where: n.id in ^step.node_ids and n.status in ~w(offline unknown),
+          select: n.id
+        )
+        |> Repo.all()
+        |> MapSet.new()
+
+      Enum.reject(step.node_ids, &MapSet.member?(unavailable, &1))
+    else
+      step.node_ids
+    end
   end
 
   defp get_rollout_node_ids(rollout_id) do

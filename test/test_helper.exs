@@ -1,3 +1,7 @@
+Mox.defmock(SentinelCp.Webhooks.GitHubClient.Mock,
+  for: SentinelCp.Webhooks.GitHubClient
+)
+
 ExUnit.start()
 
 # For SQLite, the sandbox mode works but without async support

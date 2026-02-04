@@ -100,6 +100,15 @@ defmodule SentinelCp.Bundles do
   end
 
   @doc """
+  Updates a bundle's risk level and reasons.
+  """
+  def update_risk(bundle, risk_level, risk_reasons) do
+    bundle
+    |> Bundle.compilation_changeset(%{risk_level: risk_level, risk_reasons: risk_reasons})
+    |> Repo.update()
+  end
+
+  @doc """
   Assigns a bundle to one or more nodes as their staged bundle.
   """
   def assign_bundle_to_nodes(bundle, node_ids) when is_list(node_ids) do

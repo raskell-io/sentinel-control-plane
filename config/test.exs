@@ -45,3 +45,6 @@ config :sentinel_cp, :bundle_signing, enabled: false
 
 # GitHub webhook test secret
 config :sentinel_cp, :github_webhook, secret: "test_webhook_secret"
+
+# Use mock GitHub client in tests
+config :sentinel_cp, :github_client, SentinelCp.Webhooks.GitHubClient.Mock
