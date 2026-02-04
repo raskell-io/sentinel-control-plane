@@ -97,6 +97,19 @@ rm -rf .elixir_ls
 description = "Build a release"
 run = "MIX_ENV=prod mix release"
 
+[tasks."dev:services"]
+description = "Start dev dependencies (MinIO) in background"
+run = "docker compose -f docker-compose.dev.yml up -d"
+
+[tasks."dev:services:stop"]
+description = "Stop dev dependencies"
+run = "docker compose -f docker-compose.dev.yml down"
+
+[tasks."dev:up"]
+description = "Start dev dependencies + Phoenix server in interactive mode"
+depends = ["dev:services"]
+run = "iex -S mix phx.server"
+
 [tasks."docker:build"]
 description = "Build Docker image"
 run = "docker build -t sentinel-cp ."
