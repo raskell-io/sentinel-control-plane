@@ -1,7 +1,7 @@
 defmodule SentinelCpWeb.BundlesLive.Index do
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.{Bundles, Orgs, Projects}
+  alias SentinelCp.{Audit, Bundles, Orgs, Projects}
 
   @impl true
   def mount(%{"project_slug" => slug} = params, _session, socket) do
@@ -61,6 +61,29 @@ defmodule SentinelCpWeb.BundlesLive.Index do
           |> Enum.map_join(", ", fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end)
 
         {:noreply, put_flash(socket, :error, "Failed to create bundle: #{errors}")}
+    end
+  end
+
+  @impl true
+  def handle_event("delete", %{"id" => id}, socket) do
+    bundle = Bundles.get_bundle!(id)
+    project = socket.assigns.project
+
+    case Bundles.delete_bundle(bundle) do
+      {:ok, _} ->
+        Audit.log_user_action(socket.assigns.current_user, "delete", "bundle", bundle.id,
+          project_id: project.id
+        )
+
+        bundles = Bundles.list_bundles(project.id)
+
+        {:noreply,
+         socket
+         |> assign(bundles: bundles)
+         |> put_flash(:info, "Bundle deleted.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not delete bundle.")}
     end
   end
 
@@ -164,13 +187,22 @@ defmodule SentinelCpWeb.BundlesLive.Index do
                 {if bundle.checksum, do: String.slice(bundle.checksum, 0, 12) <> "…", else: "—"}
               </td>
               <td class="text-sm">{Calendar.strftime(bundle.inserted_at, "%Y-%m-%d %H:%M")}</td>
-              <td>
+              <td class="flex gap-1">
                 <.link
-                  navigate={{bundle_show_path(@org, @project, bundle)}}
+                  navigate={bundle_show_path(@org, @project, bundle)}
                   class="btn btn-ghost btn-xs"
                 >
                   Details
                 </.link>
+                <button
+                  :if={bundle.status in ["pending", "failed"]}
+                  phx-click="delete"
+                  phx-value-id={bundle.id}
+                  data-confirm="Are you sure you want to delete this bundle?"
+                  class="btn btn-ghost btn-xs text-error"
+                >
+                  Delete
+                </button>
               </td>
             </tr>
           </tbody>

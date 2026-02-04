@@ -1,7 +1,7 @@
 defmodule SentinelCpWeb.BundlesLive.Show do
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.{Bundles, Orgs, Projects, Nodes}
+  alias SentinelCp.{Audit, Bundles, Orgs, Projects, Nodes}
 
   @impl true
   def mount(%{"project_slug" => slug, "id" => bundle_id} = params, _session, socket) do
@@ -54,6 +54,44 @@ defmodule SentinelCpWeb.BundlesLive.Show do
   end
 
   @impl true
+  def handle_event("revoke", _, socket) do
+    bundle = socket.assigns.bundle
+
+    case Bundles.revoke_bundle(bundle) do
+      {:ok, updated} ->
+        Audit.log_user_action(socket.assigns.current_user, "revoke", "bundle", bundle.id,
+          project_id: socket.assigns.project.id
+        )
+
+        {:noreply, socket |> assign(bundle: updated) |> put_flash(:info, "Bundle revoked.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not revoke bundle.")}
+    end
+  end
+
+  def handle_event("delete", _, socket) do
+    bundle = socket.assigns.bundle
+    project = socket.assigns.project
+    org = socket.assigns.org
+
+    case Bundles.delete_bundle(bundle) do
+      {:ok, _} ->
+        Audit.log_user_action(socket.assigns.current_user, "delete", "bundle", bundle.id,
+          project_id: project.id
+        )
+
+        {:noreply,
+         socket
+         |> put_flash(:info, "Bundle deleted.")
+         |> push_navigate(to: project_bundles_path(org, project))}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not delete bundle.")}
+    end
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="container mx-auto px-4 py-8">
@@ -86,6 +124,22 @@ defmodule SentinelCpWeb.BundlesLive.Show do
         >
           Download SBOM
         </a>
+        <button
+          :if={@bundle.status == "compiled"}
+          phx-click="revoke"
+          data-confirm="Are you sure you want to revoke this bundle?"
+          class="btn btn-warning btn-sm"
+        >
+          Revoke
+        </button>
+        <button
+          :if={@bundle.status in ["pending", "failed"]}
+          phx-click="delete"
+          data-confirm="Are you sure you want to delete this bundle?"
+          class="btn btn-error btn-sm"
+        >
+          Delete
+        </button>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">

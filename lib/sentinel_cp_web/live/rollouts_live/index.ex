@@ -237,7 +237,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
               </td>
               <td>
                 <.link
-                  navigate={{rollout_show_path(@org, @project, rollout)}}
+                  navigate={rollout_show_path(@org, @project, rollout)}
                   class="btn btn-ghost btn-xs"
                 >
                   Details

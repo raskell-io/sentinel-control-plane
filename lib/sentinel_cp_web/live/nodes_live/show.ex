@@ -4,7 +4,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
   """
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.{Nodes, Orgs, Projects}
+  alias SentinelCp.{Audit, Nodes, Orgs, Projects}
 
   @impl true
   def mount(%{"project_slug" => project_slug, "id" => node_id} = params, _session, socket) do
@@ -36,6 +36,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
              |> assign(:project, project)
              |> assign(:node, node)
              |> assign(:heartbeats, heartbeats)
+             |> assign(:show_label_form, false)
              |> assign(:page_title, "#{node.name} - #{project.name}")}
 
           _ ->
@@ -79,6 +80,10 @@ defmodule SentinelCpWeb.NodesLive.Show do
   def handle_event("delete", _, socket) do
     case Nodes.delete_node(socket.assigns.node) do
       {:ok, _} ->
+        Audit.log_user_action(socket.assigns.current_user, "delete", "node", socket.assigns.node.id,
+          project_id: socket.assigns.project.id
+        )
+
         {:noreply,
          socket
          |> put_flash(:info, "Node deleted")
@@ -86,6 +91,39 @@ defmodule SentinelCpWeb.NodesLive.Show do
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to delete node")}
+    end
+  end
+
+  def handle_event("toggle_label_form", _, socket) do
+    {:noreply, assign(socket, show_label_form: !socket.assigns.show_label_form)}
+  end
+
+  def handle_event("update_labels", %{"labels" => labels_str}, socket) do
+    labels =
+      labels_str
+      |> String.split("\n", trim: true)
+      |> Enum.reduce(%{}, fn line, acc ->
+        case String.split(line, "=", parts: 2) do
+          [key, value] -> Map.put(acc, String.trim(key), String.trim(value))
+          _ -> acc
+        end
+      end)
+
+    node = socket.assigns.node
+
+    case Nodes.update_node_labels(node, labels) do
+      {:ok, updated} ->
+        Audit.log_user_action(socket.assigns.current_user, "update_labels", "node", node.id,
+          project_id: socket.assigns.project.id
+        )
+
+        {:noreply,
+         socket
+         |> assign(node: updated, show_label_form: false)
+         |> put_flash(:info, "Labels updated.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not update labels.")}
     end
   end
 
@@ -190,7 +228,30 @@ defmodule SentinelCpWeb.NodesLive.Show do
         
     <!-- Labels Card -->
         <div class="bg-base-100 rounded-lg shadow p-6">
-          <h2 class="text-lg font-semibold mb-4">Labels</h2>
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold">Labels</h2>
+            <button class="btn btn-ghost btn-xs" phx-click="toggle_label_form">
+              Edit Labels
+            </button>
+          </div>
+          <div :if={@show_label_form} class="mb-4">
+            <form phx-submit="update_labels" class="space-y-3">
+              <div class="form-control">
+                <label class="label"><span class="label-text">Labels (one key=value per line)</span></label>
+                <textarea
+                  name="labels"
+                  rows="5"
+                  class="textarea textarea-bordered font-mono text-sm w-full"
+                >{format_labels_for_edit(@node.labels)}</textarea>
+              </div>
+              <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary btn-xs">Save</button>
+                <button type="button" class="btn btn-ghost btn-xs" phx-click="toggle_label_form">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
           <%= if @node.labels && map_size(@node.labels) > 0 do %>
             <div class="flex flex-wrap gap-2">
               <%= for {key, value} <- @node.labels do %>
@@ -293,6 +354,16 @@ defmodule SentinelCpWeb.NodesLive.Show do
 
   defp format_datetime(datetime) do
     Calendar.strftime(datetime, "%Y-%m-%d %H:%M:%S UTC")
+  end
+
+  defp format_labels_for_edit(nil), do: ""
+
+  defp format_labels_for_edit(labels) when labels == %{}, do: ""
+
+  defp format_labels_for_edit(labels) do
+    labels
+    |> Enum.map(fn {k, v} -> "#{k}=#{v}" end)
+    |> Enum.join("\n")
   end
 
   defp format_relative_time(datetime) do

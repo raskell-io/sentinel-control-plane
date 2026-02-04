@@ -4,7 +4,7 @@ defmodule SentinelCpWeb.OrgsLive.Index do
   """
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.Orgs
+  alias SentinelCp.{Audit, Orgs}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -14,7 +14,35 @@ defmodule SentinelCpWeb.OrgsLive.Index do
     {:ok,
      socket
      |> assign(:org_memberships, org_memberships)
+     |> assign(:show_form, false)
      |> assign(:page_title, "Organizations")}
+  end
+
+  @impl true
+  def handle_event("toggle_form", _, socket) do
+    {:noreply, assign(socket, show_form: !socket.assigns.show_form)}
+  end
+
+  def handle_event("create_org", %{"name" => name}, socket) do
+    user = socket.assigns.current_user
+
+    case Orgs.create_org_with_owner(%{name: name}, user) do
+      {:ok, org} ->
+        Audit.log_user_action(user, "create", "org", org.id, org_id: org.id)
+        org_memberships = Orgs.list_user_orgs(user.id)
+
+        {:noreply,
+         socket
+         |> assign(org_memberships: org_memberships, show_form: false)
+         |> put_flash(:info, "Organization created.")}
+
+      {:error, changeset} ->
+        errors =
+          Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)
+          |> Enum.map_join(", ", fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end)
+
+        {:noreply, put_flash(socket, :error, "Could not create organization: #{errors}")}
+    end
   end
 
   @impl true
@@ -25,6 +53,33 @@ defmodule SentinelCpWeb.OrgsLive.Index do
         <div>
           <h1 class="text-2xl font-bold">Organizations</h1>
           <p class="text-gray-500 mt-1">Select an organization to manage</p>
+        </div>
+        <button class="btn btn-primary btn-sm" phx-click="toggle_form">
+          New Organization
+        </button>
+      </div>
+
+      <div :if={@show_form} class="card bg-base-200 mb-6">
+        <div class="card-body">
+          <h2 class="card-title text-lg">Create Organization</h2>
+          <form phx-submit="create_org" class="space-y-4">
+            <div class="form-control">
+              <label class="label"><span class="label-text">Name</span></label>
+              <input
+                type="text"
+                name="name"
+                required
+                class="input input-bordered w-full max-w-xs"
+                placeholder="e.g. My Organization"
+              />
+            </div>
+            <div class="flex gap-2">
+              <button type="submit" class="btn btn-primary btn-sm">Create</button>
+              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_form">
+                Cancel
+              </button>
+            </div>
+          </form>
         </div>
       </div>
 

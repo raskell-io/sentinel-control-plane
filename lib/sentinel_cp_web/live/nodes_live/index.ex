@@ -4,7 +4,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
   """
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.{Nodes, Orgs, Projects}
+  alias SentinelCp.{Audit, Nodes, Orgs, Projects}
 
   @impl true
   def mount(%{"project_slug" => project_slug} = params, _session, socket) do
@@ -30,6 +30,8 @@ defmodule SentinelCpWeb.NodesLive.Index do
          |> assign(:nodes, nodes)
          |> assign(:stats, stats)
          |> assign(:status_filter, nil)
+         |> assign(:show_form, false)
+         |> assign(:created_node_key, nil)
          |> assign(:page_title, "Nodes - #{project.name}")}
     end
   end
@@ -44,6 +46,64 @@ defmodule SentinelCpWeb.NodesLive.Index do
   end
 
   @impl true
+  def handle_event("toggle_form", _, socket) do
+    {:noreply, assign(socket, show_form: !socket.assigns.show_form, created_node_key: nil)}
+  end
+
+  def handle_event("dismiss_key", _, socket) do
+    {:noreply, assign(socket, created_node_key: nil)}
+  end
+
+  def handle_event("create_node", params, socket) do
+    project = socket.assigns.project
+
+    labels =
+      (params["labels"] || "")
+      |> String.split("\n", trim: true)
+      |> Enum.reduce(%{}, fn line, acc ->
+        case String.split(line, "=", parts: 2) do
+          [key, value] -> Map.put(acc, String.trim(key), String.trim(value))
+          _ -> acc
+        end
+      end)
+
+    attrs = %{
+      project_id: project.id,
+      name: params["name"],
+      hostname: if(params["hostname"] != "", do: params["hostname"]),
+      ip: if(params["ip"] != "", do: params["ip"]),
+      version: if(params["version"] != "", do: params["version"]),
+      labels: labels
+    }
+
+    case Nodes.register_node(attrs) do
+      {:ok, node} ->
+        Audit.log_user_action(socket.assigns.current_user, "create", "node", node.id,
+          project_id: project.id
+        )
+
+        nodes = filter_nodes(project.id, socket.assigns.status_filter)
+        stats = Nodes.get_node_stats(project.id)
+
+        {:noreply,
+         socket
+         |> assign(nodes: nodes, stats: stats, show_form: false, created_node_key: node.node_key)
+         |> put_flash(:info, "Node registered.")}
+
+      {:error, changeset} ->
+        errors =
+          Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+            Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
+              opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+            end)
+          end)
+          |> Enum.map(fn {field, msgs} -> "#{field}: #{Enum.join(msgs, ", ")}" end)
+          |> Enum.join("; ")
+
+        {:noreply, put_flash(socket, :error, "Could not register node: #{errors}")}
+    end
+  end
+
   def handle_event("filter", %{"status" => status}, socket) do
     status = if status == "", do: nil, else: status
 
@@ -53,7 +113,6 @@ defmodule SentinelCpWeb.NodesLive.Index do
      )}
   end
 
-  @impl true
   def handle_event("delete", %{"id" => node_id}, socket) do
     node = Nodes.get_node!(node_id)
 
@@ -98,17 +157,95 @@ defmodule SentinelCpWeb.NodesLive.Index do
           <h1 class="text-2xl font-bold">{@project.name} / Nodes</h1>
           <p class="text-gray-500 mt-1">Manage Sentinel proxy instances</p>
         </div>
+        <button class="btn btn-primary btn-sm" phx-click="toggle_form">
+          Register Node
+        </button>
       </div>
-      
-    <!-- Stats Cards -->
+
+      <%!-- Node key banner (shown once after creation) --%>
+      <div :if={@created_node_key} class="alert alert-warning mb-6">
+        <div class="flex-1">
+          <p class="font-semibold">Save this node key — it will not be shown again.</p>
+          <pre class="mt-2 bg-base-300 p-3 rounded font-mono text-sm select-all">{@created_node_key}</pre>
+        </div>
+        <button class="btn btn-ghost btn-sm" phx-click="dismiss_key">Dismiss</button>
+      </div>
+
+      <%!-- Create Node Form --%>
+      <div :if={@show_form} class="card bg-base-200 mb-6">
+        <div class="card-body">
+          <h2 class="card-title text-lg">Register Node</h2>
+          <form phx-submit="create_node" class="space-y-4">
+            <div class="form-control">
+              <label class="label"><span class="label-text">Name</span></label>
+              <input
+                type="text"
+                name="name"
+                required
+                class="input input-bordered w-full max-w-xs"
+                placeholder="e.g. edge-node-01"
+              />
+              <label class="label">
+                <span class="label-text-alt">Alphanumeric, underscore, dot, or hyphen</span>
+              </label>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="form-control">
+                <label class="label"><span class="label-text">Hostname</span></label>
+                <input
+                  type="text"
+                  name="hostname"
+                  class="input input-bordered w-full"
+                  placeholder="optional"
+                />
+              </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">IP Address</span></label>
+                <input
+                  type="text"
+                  name="ip"
+                  class="input input-bordered w-full"
+                  placeholder="optional"
+                />
+              </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">Version</span></label>
+                <input
+                  type="text"
+                  name="version"
+                  class="input input-bordered w-full"
+                  placeholder="optional"
+                />
+              </div>
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text">Labels (one key=value per line)</span></label>
+              <textarea
+                name="labels"
+                rows="3"
+                class="textarea textarea-bordered font-mono text-sm w-full max-w-md"
+                placeholder={"env=production\nregion=us-east-1"}
+              ></textarea>
+            </div>
+            <div class="flex gap-2">
+              <button type="submit" class="btn btn-primary btn-sm">Register</button>
+              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_form">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Stats Cards -->
       <div class="grid grid-cols-4 gap-4 mb-6">
         <.stat_card label="Total" value={Enum.count(@nodes)} color="blue" />
         <.stat_card label="Online" value={Map.get(@stats, "online", 0)} color="green" />
         <.stat_card label="Offline" value={Map.get(@stats, "offline", 0)} color="red" />
         <.stat_card label="Unknown" value={Map.get(@stats, "unknown", 0)} color="gray" />
       </div>
-      
-    <!-- Filters -->
+
+      <!-- Filters -->
       <div class="flex gap-4 mb-4">
         <form phx-change="filter" class="flex gap-2">
           <select name="status" class="select select-bordered select-sm">
@@ -119,8 +256,8 @@ defmodule SentinelCpWeb.NodesLive.Index do
           </select>
         </form>
       </div>
-      
-    <!-- Nodes Table -->
+
+      <!-- Nodes Table -->
       <div class="bg-base-100 rounded-lg shadow overflow-hidden">
         <table class="table w-full">
           <thead>
@@ -138,7 +275,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
               <tr class="hover">
                 <td>
                   <.link
-                    navigate={{node_show_path(@org, @project, node)}}
+                    navigate={node_show_path(@org, @project, node)}
                     class="font-medium text-primary hover:underline"
                   >
                     {node.name}
@@ -171,7 +308,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
           <div class="p-8 text-center text-gray-500">
             <p>No nodes found.</p>
             <p class="text-sm mt-2">
-              Nodes will appear here once they register with the control plane.
+              Register a node above or let nodes self-register via the API.
             </p>
           </div>
         <% end %>
