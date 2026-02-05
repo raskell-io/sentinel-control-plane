@@ -67,6 +67,13 @@ defmodule SentinelCpWeb.Router do
     get "/ready", HealthController, :ready
   end
 
+  # API Documentation (public, no auth)
+  scope "/api", SentinelCpWeb do
+    pipe_through :browser
+
+    get "/docs", ApiDocsController, :index
+  end
+
   # Prometheus metrics
   scope "/" do
     pipe_through :api

@@ -155,6 +155,8 @@ docker run -p 4000:4000 \
 
 ## API
 
+**📚 Interactive API Documentation:** [/api/docs](http://localhost:4000/api/docs) — powered by [Scalar](https://github.com/scalar/scalar)
+
 ### Node API
 
 Nodes authenticate with registration keys or JWT tokens.

@@ -1,0 +1,1296 @@
+openapi: 3.1.0
+info:
+  title: Sentinel Control Plane API
+  description: |
+    Fleet management API for Sentinel reverse proxies.
+
+    ## Authentication
+
+    The API uses Bearer token authentication with scoped API keys.
+
+    ```
+    Authorization: Bearer <api_key>
+    ```
+
+    ### Scopes
+
+    API keys can be created with specific scopes to limit access:
+
+    | Scope | Description |
+    |-------|-------------|
+    | `nodes:read` | Read node information |
+    | `nodes:write` | Delete nodes, resolve drift events |
+    | `bundles:read` | List and download bundles |
+    | `bundles:write` | Create, assign, and revoke bundles |
+    | `rollouts:read` | List and view rollout details |
+    | `rollouts:write` | Create and control rollouts |
+    | `api_keys:admin` | Manage API keys |
+
+    Keys with no scopes have full access (legacy behavior).
+
+  version: 1.0.0
+  contact:
+    name: Sentinel Support
+    url: https://github.com/raskell-io/sentinel-control-plane
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: http://localhost:4000
+    description: Local development
+  - url: https://api.sentinel.example.com
+    description: Production
+
+tags:
+  - name: Nodes
+    description: Node management and monitoring
+  - name: Bundles
+    description: Configuration bundle lifecycle
+  - name: Rollouts
+    description: Deployment orchestration
+  - name: Drift
+    description: Configuration drift detection
+  - name: API Keys
+    description: API key management
+  - name: Webhooks
+    description: External integrations
+  - name: Health
+    description: Health and readiness probes
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Basic health check endpoint
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      description: Checks if the service is ready to accept traffic
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /api/v1/projects/{project_slug}/nodes:
+    get:
+      tags: [Nodes]
+      summary: List nodes
+      description: Returns all nodes in a project with optional filtering
+      operationId: listNodes
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - name: status
+          in: query
+          description: Filter by node status
+          schema:
+            type: string
+            enum: [online, offline, unknown]
+        - name: labels
+          in: query
+          description: Filter by labels (JSON object)
+          schema:
+            type: object
+      responses:
+        '200':
+          description: List of nodes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Node'
+                  total:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/projects/{project_slug}/nodes/stats:
+    get:
+      tags: [Nodes]
+      summary: Get node statistics
+      description: Returns aggregate statistics about nodes in a project
+      operationId: getNodeStats
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+      responses:
+        '200':
+          description: Node statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  by_status:
+                    type: object
+                    properties:
+                      online:
+                        type: integer
+                      offline:
+                        type: integer
+                      unknown:
+                        type: integer
+
+  /api/v1/projects/{project_slug}/nodes/{id}:
+    get:
+      tags: [Nodes]
+      summary: Get node details
+      description: Returns detailed information about a specific node
+      operationId: getNode
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/NodeId'
+      responses:
+        '200':
+          description: Node details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  node:
+                    $ref: '#/components/schemas/Node'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Nodes]
+      summary: Delete node
+      description: Permanently removes a node from the project
+      operationId: deleteNode
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/NodeId'
+      responses:
+        '204':
+          description: Node deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/projects/{project_slug}/bundles:
+    get:
+      tags: [Bundles]
+      summary: List bundles
+      description: Returns all bundles in a project
+      operationId: listBundles
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - name: status
+          in: query
+          description: Filter by bundle status
+          schema:
+            type: string
+            enum: [pending, compiling, compiled, failed, revoked]
+      responses:
+        '200':
+          description: List of bundles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bundles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Bundle'
+                  total:
+                    type: integer
+
+    post:
+      tags: [Bundles]
+      summary: Create bundle
+      description: Creates a new configuration bundle and queues it for compilation
+      operationId: createBundle
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, config_source]
+              properties:
+                version:
+                  type: string
+                  description: Semantic version for the bundle
+                  example: "1.2.3"
+                config_source:
+                  type: string
+                  description: KDL configuration content
+                  example: |
+                    system {
+                      workers 4
+                    }
+                    listeners {
+                      listener "http" address="0.0.0.0:8080"
+                    }
+                risk_level:
+                  type: string
+                  enum: [low, medium, high]
+                  default: low
+      responses:
+        '201':
+          description: Bundle created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  version:
+                    type: string
+                  status:
+                    type: string
+                  project_id:
+                    type: string
+                    format: uuid
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/v1/projects/{project_slug}/bundles/{id}:
+    get:
+      tags: [Bundles]
+      summary: Get bundle details
+      operationId: getBundle
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/BundleId'
+      responses:
+        '200':
+          description: Bundle details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bundle:
+                    $ref: '#/components/schemas/Bundle'
+
+  /api/v1/projects/{project_slug}/bundles/{id}/download:
+    get:
+      tags: [Bundles]
+      summary: Get bundle download URL
+      description: Returns a presigned URL to download the bundle artifact
+      operationId: downloadBundle
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/BundleId'
+      responses:
+        '200':
+          description: Download information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  download_url:
+                    type: string
+                    format: uri
+                  checksum:
+                    type: string
+                  size:
+                    type: integer
+        '409':
+          description: Bundle not compiled yet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/projects/{project_slug}/bundles/{id}/sbom:
+    get:
+      tags: [Bundles]
+      summary: Download SBOM
+      description: Returns the Software Bill of Materials in CycloneDX format
+      operationId: getBundleSbom
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/BundleId'
+      responses:
+        '200':
+          description: CycloneDX SBOM
+          content:
+            application/vnd.cyclonedx+json:
+              schema:
+                type: object
+                properties:
+                  bomFormat:
+                    type: string
+                    example: CycloneDX
+                  specVersion:
+                    type: string
+                    example: "1.5"
+                  components:
+                    type: array
+                    items:
+                      type: object
+
+  /api/v1/projects/{project_slug}/bundles/{id}/verify:
+    get:
+      tags: [Bundles]
+      summary: Verify bundle signature
+      operationId: verifyBundle
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/BundleId'
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                  signed:
+                    type: boolean
+                  key_id:
+                    type: string
+                    nullable: true
+
+  /api/v1/projects/{project_slug}/bundles/{id}/assign:
+    post:
+      tags: [Bundles]
+      summary: Assign bundle to nodes
+      description: Directly assigns a bundle to specific nodes without a rollout
+      operationId: assignBundle
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/BundleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [node_ids]
+              properties:
+                node_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Assignment result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assigned:
+                    type: integer
+        '409':
+          description: Bundle must be compiled first
+
+  /api/v1/projects/{project_slug}/bundles/{id}/revoke:
+    post:
+      tags: [Bundles]
+      summary: Revoke bundle
+      description: Marks a bundle as revoked, preventing further deployments
+      operationId: revokeBundle
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/BundleId'
+      responses:
+        '200':
+          description: Bundle revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bundle:
+                    $ref: '#/components/schemas/Bundle'
+
+  /api/v1/projects/{project_slug}/rollouts:
+    get:
+      tags: [Rollouts]
+      summary: List rollouts
+      operationId: listRollouts
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, paused, completed, failed, cancelled]
+      responses:
+        '200':
+          description: List of rollouts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rollouts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Rollout'
+                  total:
+                    type: integer
+
+    post:
+      tags: [Rollouts]
+      summary: Create rollout
+      description: Creates a new rollout to deploy a bundle to nodes
+      operationId: createRollout
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bundle_id]
+              properties:
+                bundle_id:
+                  type: string
+                  format: uuid
+                target_selector:
+                  $ref: '#/components/schemas/TargetSelector'
+                strategy:
+                  type: string
+                  enum: [rolling, all_at_once]
+                  default: rolling
+                batch_size:
+                  type: integer
+                  default: 1
+                  minimum: 1
+                max_unavailable:
+                  type: integer
+                  default: 0
+                  minimum: 0
+                progress_deadline_seconds:
+                  type: integer
+                  default: 600
+                health_gates:
+                  type: object
+                  default:
+                    heartbeat_healthy: true
+      responses:
+        '201':
+          description: Rollout created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rollout'
+
+  /api/v1/projects/{project_slug}/rollouts/{id}:
+    get:
+      tags: [Rollouts]
+      summary: Get rollout details
+      operationId: getRollout
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/RolloutId'
+      responses:
+        '200':
+          description: Rollout details with steps
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rollout:
+                    $ref: '#/components/schemas/Rollout'
+                  steps:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RolloutStep'
+                  progress:
+                    type: object
+
+  /api/v1/projects/{project_slug}/rollouts/{id}/pause:
+    post:
+      tags: [Rollouts]
+      summary: Pause rollout
+      operationId: pauseRollout
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/RolloutId'
+      responses:
+        '200':
+          description: Rollout paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rollout'
+        '409':
+          description: Rollout cannot be paused in current state
+
+  /api/v1/projects/{project_slug}/rollouts/{id}/resume:
+    post:
+      tags: [Rollouts]
+      summary: Resume rollout
+      operationId: resumeRollout
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/RolloutId'
+      responses:
+        '200':
+          description: Rollout resumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rollout'
+
+  /api/v1/projects/{project_slug}/rollouts/{id}/cancel:
+    post:
+      tags: [Rollouts]
+      summary: Cancel rollout
+      operationId: cancelRollout
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/RolloutId'
+      responses:
+        '200':
+          description: Rollout cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rollout'
+
+  /api/v1/projects/{project_slug}/rollouts/{id}/rollback:
+    post:
+      tags: [Rollouts]
+      summary: Rollback deployment
+      description: Creates a new rollout to restore the previous bundle version
+      operationId: rollbackRollout
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - $ref: '#/components/parameters/RolloutId'
+      responses:
+        '200':
+          description: Rollback initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rollout'
+
+  /api/v1/projects/{project_slug}/drift:
+    get:
+      tags: [Drift]
+      summary: List drift events
+      operationId: listDriftEvents
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, all]
+            default: all
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: List of drift events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drift_events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DriftEvent'
+                  total:
+                    type: integer
+
+  /api/v1/projects/{project_slug}/drift/stats:
+    get:
+      tags: [Drift]
+      summary: Get drift statistics
+      operationId: getDriftStats
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+      responses:
+        '200':
+          description: Drift statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_managed:
+                    type: integer
+                  drifted:
+                    type: integer
+                  in_sync:
+                    type: integer
+                  active_events:
+                    type: integer
+                  resolved_today:
+                    type: integer
+
+  /api/v1/projects/{project_slug}/drift/{id}:
+    get:
+      tags: [Drift]
+      summary: Get drift event details
+      operationId: getDriftEvent
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Drift event details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drift_event:
+                    $ref: '#/components/schemas/DriftEvent'
+
+  /api/v1/projects/{project_slug}/drift/{id}/resolve:
+    post:
+      tags: [Drift]
+      summary: Resolve drift event
+      operationId: resolveDriftEvent
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Drift event resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drift_event:
+                    $ref: '#/components/schemas/DriftEvent'
+
+  /api/v1/projects/{project_slug}/drift/resolve-all:
+    post:
+      tags: [Drift]
+      summary: Resolve all drift events
+      operationId: resolveAllDriftEvents
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+      responses:
+        '200':
+          description: All drift events resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resolved_count:
+                    type: integer
+
+  /api/v1/projects/{project_slug}/drift/export:
+    get:
+      tags: [Drift]
+      summary: Export drift events
+      operationId: exportDriftEvents
+      parameters:
+        - $ref: '#/components/parameters/ProjectSlug'
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, resolved, all]
+            default: all
+      responses:
+        '200':
+          description: Exported drift events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DriftEvent'
+            text/csv:
+              schema:
+                type: string
+
+  /api/v1/api-keys:
+    get:
+      tags: [API Keys]
+      summary: List API keys
+      operationId: listApiKeys
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+                  total:
+                    type: integer
+
+    post:
+      tags: [API Keys]
+      summary: Create API key
+      operationId: createApiKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - nodes:read
+                      - nodes:write
+                      - bundles:read
+                      - bundles:write
+                      - rollouts:read
+                      - rollouts:write
+                      - api_keys:admin
+                project_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                expires_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+      responses:
+        '201':
+          description: API key created (raw key only returned here)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiKey'
+                  - type: object
+                    properties:
+                      key:
+                        type: string
+                        description: Raw API key (only returned on creation)
+
+  /api/v1/api-keys/{id}:
+    get:
+      tags: [API Keys]
+      summary: Get API key details
+      operationId: getApiKey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API key details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_key:
+                    $ref: '#/components/schemas/ApiKey'
+
+    delete:
+      tags: [API Keys]
+      summary: Delete API key
+      operationId: deleteApiKey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: API key deleted
+
+  /api/v1/api-keys/{id}/revoke:
+    post:
+      tags: [API Keys]
+      summary: Revoke API key
+      operationId: revokeApiKey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API key revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_key:
+                    $ref: '#/components/schemas/ApiKey'
+
+  /api/v1/webhooks/github:
+    post:
+      tags: [Webhooks]
+      summary: GitHub webhook
+      description: Receives push events from GitHub to trigger bundle compilation
+      operationId: githubWebhook
+      security: []
+      parameters:
+        - name: X-Hub-Signature-256
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-GitHub-Event
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: GitHub push event payload
+      responses:
+        '201':
+          description: Bundle created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  bundle_id:
+                    type: string
+                    format: uuid
+        '200':
+          description: Event acknowledged but no action taken
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: API key authentication
+
+  parameters:
+    ProjectSlug:
+      name: project_slug
+      in: path
+      required: true
+      description: Project slug identifier
+      schema:
+        type: string
+
+    NodeId:
+      name: id
+      in: path
+      required: true
+      description: Node UUID
+      schema:
+        type: string
+        format: uuid
+
+    BundleId:
+      name: id
+      in: path
+      required: true
+      description: Bundle UUID
+      schema:
+        type: string
+        format: uuid
+
+    RolloutId:
+      name: id
+      in: path
+      required: true
+      description: Rollout UUID
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    Node:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          enum: [online, offline, unknown]
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        version:
+          type: string
+        ip:
+          type: string
+        hostname:
+          type: string
+        last_seen_at:
+          type: string
+          format: date-time
+          nullable: true
+        registered_at:
+          type: string
+          format: date-time
+        inserted_at:
+          type: string
+          format: date-time
+
+    Bundle:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: string
+        status:
+          type: string
+          enum: [pending, compiling, compiled, failed, revoked]
+        checksum:
+          type: string
+          nullable: true
+        size_bytes:
+          type: integer
+          nullable: true
+        risk_level:
+          type: string
+          enum: [low, medium, high]
+        manifest:
+          type: object
+          nullable: true
+        compiler_output:
+          type: string
+          nullable: true
+        signed:
+          type: boolean
+        signing_key_id:
+          type: string
+          nullable: true
+        inserted_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Rollout:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        bundle_id:
+          type: string
+          format: uuid
+        target_selector:
+          $ref: '#/components/schemas/TargetSelector'
+        strategy:
+          type: string
+          enum: [rolling, all_at_once]
+        batch_size:
+          type: integer
+        max_unavailable:
+          type: integer
+        progress_deadline_seconds:
+          type: integer
+        health_gates:
+          type: object
+        state:
+          type: string
+          enum: [pending, running, paused, completed, failed, cancelled]
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        inserted_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    RolloutStep:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        step_index:
+          type: integer
+        node_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        state:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error:
+          type: string
+          nullable: true
+
+    TargetSelector:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [all, labels, node_ids, groups]
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        node_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        group_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    DriftEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        node_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        expected_bundle_id:
+          type: string
+          format: uuid
+        actual_bundle_id:
+          type: string
+          format: uuid
+          nullable: true
+        severity:
+          type: string
+        detected_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+        resolution:
+          type: string
+          nullable: true
+        inserted_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key_prefix:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        project_id:
+          type: string
+          format: uuid
+          nullable: true
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+        inserted_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            missing_header:
+              value:
+                error: Missing Authorization header
+            invalid_key:
+              value:
+                error: Invalid or expired API key
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Insufficient scope. Required: bundles:write"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Node not found
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+          example:
+            error:
+              version: ["can't be blank"]
