@@ -21,6 +21,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
         compiled_bundles = Bundles.list_bundles(project.id, status: "compiled")
         templates = Rollouts.list_templates(project.id)
         default_template = Rollouts.get_default_template(project.id)
+        health_checks = Rollouts.list_health_check_endpoints(project.id)
 
         form_values =
           if default_template do
@@ -37,6 +38,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
            rollouts: rollouts,
            compiled_bundles: compiled_bundles,
            templates: templates,
+           health_checks: health_checks,
            selected_template_id: default_template && default_template.id,
            form_values: form_values,
            show_form: false
@@ -92,12 +94,24 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
 
     scheduled_at = parse_scheduled_at(params["scheduled_at"])
 
+    custom_health_checks =
+      case params["custom_health_checks"] do
+        nil -> []
+        "" -> []
+        ids when is_list(ids) -> ids
+        id when is_binary(id) -> [id]
+      end
+
     attrs = %{
       project_id: project.id,
       bundle_id: params["bundle_id"],
       target_selector: target_selector,
       strategy: params["strategy"] || "rolling",
       batch_size: parse_int(params["batch_size"], 1),
+      batch_percentage: parse_int_or_nil(params["batch_percentage"]),
+      auto_rollback: params["auto_rollback"] in ["true", true],
+      rollback_threshold: parse_int(params["rollback_threshold"], 50),
+      custom_health_checks: custom_health_checks,
       created_by_id: current_user && current_user.id,
       scheduled_at: scheduled_at
     }
@@ -256,7 +270,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
                 placeholder="node-id-1,node-id-2"
               />
             </div>
-            <div class="flex gap-4">
+            <div class="flex flex-wrap gap-4">
               <div class="form-control">
                 <label class="label"><span class="label-text">Strategy</span></label>
                 <select name="strategy" class="select select-bordered select-sm">
@@ -278,6 +292,78 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
                   class="input input-bordered input-sm w-24"
                 />
               </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">Batch % (canary)</span></label>
+                <input
+                  type="number"
+                  name="batch_percentage"
+                  value={@form_values.batch_percentage}
+                  min="1"
+                  max="100"
+                  placeholder="—"
+                  class="input input-bordered input-sm w-24"
+                />
+                <label class="label">
+                  <span class="label-text-alt text-base-content/50">
+                    Override batch size with %
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div class="divider text-sm">Canary Settings</div>
+
+            <div class="flex flex-wrap gap-4 items-end">
+              <div class="form-control">
+                <label class="label cursor-pointer gap-2">
+                  <input
+                    type="checkbox"
+                    name="auto_rollback"
+                    value="true"
+                    checked={@form_values.auto_rollback}
+                    class="checkbox checkbox-sm"
+                  />
+                  <span class="label-text">Auto-rollback on failure</span>
+                </label>
+              </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">Rollback Threshold %</span></label>
+                <input
+                  type="number"
+                  name="rollback_threshold"
+                  value={@form_values.rollback_threshold}
+                  min="1"
+                  max="100"
+                  class="input input-bordered input-sm w-24"
+                />
+                <label class="label">
+                  <span class="label-text-alt text-base-content/50">
+                    Trigger rollback at this % failures
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div :if={@health_checks != []} class="form-control">
+              <label class="label"><span class="label-text">Custom Health Checks</span></label>
+              <select
+                name="custom_health_checks[]"
+                multiple
+                class="select select-bordered select-sm w-full max-w-xs h-24"
+              >
+                <option
+                  :for={hc <- @health_checks}
+                  value={hc.id}
+                  selected={hc.id in (@form_values.custom_health_checks || [])}
+                >
+                  {hc.name} ({hc.url})
+                </option>
+              </select>
+              <label class="label">
+                <span class="label-text-alt text-base-content/50">
+                  Hold Ctrl/Cmd to select multiple. Leave empty to use default health gates.
+                </span>
+              </label>
             </div>
             <div class="form-control">
               <label class="label">
@@ -443,6 +529,16 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
     end
   end
 
+  defp parse_int_or_nil(nil), do: nil
+  defp parse_int_or_nil(""), do: nil
+
+  defp parse_int_or_nil(str) do
+    case Integer.parse(str) do
+      {n, _} -> n
+      :error -> nil
+    end
+  end
+
   defp parse_scheduled_at(nil), do: nil
   defp parse_scheduled_at(""), do: nil
 
@@ -459,7 +555,11 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
       labels: "",
       node_ids: "",
       strategy: "rolling",
-      batch_size: 1
+      batch_size: 1,
+      batch_percentage: nil,
+      auto_rollback: false,
+      rollback_threshold: 50,
+      custom_health_checks: []
     }
   end
 
@@ -469,7 +569,11 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
       labels: format_labels_for_input(template.target_selector),
       node_ids: format_node_ids_for_input(template.target_selector),
       strategy: template.strategy || "rolling",
-      batch_size: template.batch_size || 1
+      batch_size: template.batch_size || 1,
+      batch_percentage: nil,
+      auto_rollback: false,
+      rollback_threshold: 50,
+      custom_health_checks: []
     }
   end
 

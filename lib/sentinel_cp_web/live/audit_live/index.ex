@@ -108,6 +108,20 @@ defmodule SentinelCpWeb.AuditLive.Index do
             </select>
           </form>
         </:filters>
+        <:actions>
+          <div class="dropdown dropdown-end">
+            <label tabindex="0" class="btn btn-outline btn-sm">
+              Export
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </label>
+            <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-200 rounded-box w-40">
+              <li><a href={export_url(@filters, "json")} target="_blank">Export as JSON</a></li>
+              <li><a href={export_url(@filters, "csv")} target="_blank">Export as CSV</a></li>
+            </ul>
+          </div>
+        </:actions>
       </.table_toolbar>
 
       <div class="overflow-x-auto">
@@ -245,5 +259,15 @@ defmodule SentinelCpWeb.AuditLive.Index do
 
   defp available_resource_types do
     ~w(user bundle node rollout api_key)
+  end
+
+  defp export_url(filters, format) do
+    params =
+      filters
+      |> Map.put(:format, format)
+      |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
+      |> Map.new()
+
+    ~p"/audit/export?#{params}"
   end
 end

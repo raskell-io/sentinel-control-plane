@@ -115,6 +115,7 @@ defmodule SentinelCpWeb.Router do
     live "/projects/:project_slug/node-groups", NodeGroupsLive.Index, :index
     live "/projects/:project_slug/health-checks", HealthChecksLive.Index, :index
     live "/projects/:project_slug/environments", EnvironmentsLive.Index, :index
+    live "/projects/:project_slug/validation-rules", ValidationRulesLive.Index, :index
 
     # Org-scoped dashboard
     live "/orgs/:org_slug/dashboard", DashboardLive.Index, :index
@@ -135,6 +136,7 @@ defmodule SentinelCpWeb.Router do
     live "/orgs/:org_slug/projects/:project_slug/node-groups", NodeGroupsLive.Index, :index
     live "/orgs/:org_slug/projects/:project_slug/health-checks", HealthChecksLive.Index, :index
     live "/orgs/:org_slug/projects/:project_slug/environments", EnvironmentsLive.Index, :index
+    live "/orgs/:org_slug/projects/:project_slug/validation-rules", ValidationRulesLive.Index, :index
   end
 
   # Admin-only browser routes
@@ -142,6 +144,7 @@ defmodule SentinelCpWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     live "/audit", AuditLive.Index, :index
+    get "/audit/export", AuditController, :export
   end
 
   # Webhook endpoints (verified by signature, not API key)

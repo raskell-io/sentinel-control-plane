@@ -4,7 +4,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
   """
   use SentinelCpWeb, :live_view
 
-  alias SentinelCp.{Audit, Nodes, Orgs, Projects}
+  alias SentinelCp.{Audit, Bundles, Nodes, Orgs, Projects}
   alias SentinelCp.Nodes.Node
 
   @impl true
@@ -34,6 +34,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
             events = Nodes.list_node_events(node.id)
             runtime_config = Nodes.get_runtime_config(node.id)
             drift_events = Nodes.list_node_drift_events(node.id)
+            compiled_bundles = Bundles.list_bundles(project.id, status: "compiled")
 
             {:ok,
              socket
@@ -44,8 +45,10 @@ defmodule SentinelCpWeb.NodesLive.Show do
              |> assign(:events, events)
              |> assign(:runtime_config, runtime_config)
              |> assign(:drift_events, drift_events)
+             |> assign(:compiled_bundles, compiled_bundles)
              |> assign(:active_tab, "events")
              |> assign(:show_label_form, false)
+             |> assign(:show_pin_form, false)
              |> assign(:page_title, "#{node.name} - #{project.name}")}
 
           _ ->
@@ -168,6 +171,81 @@ defmodule SentinelCpWeb.NodesLive.Show do
     {:noreply, assign(socket, active_tab: tab)}
   end
 
+  def handle_event("toggle_pin_form", _, socket) do
+    {:noreply, assign(socket, show_pin_form: !socket.assigns.show_pin_form)}
+  end
+
+  def handle_event("pin_to_bundle", %{"bundle_id" => bundle_id}, socket) do
+    node = socket.assigns.node
+
+    case Nodes.pin_node_to_bundle(node.id, bundle_id) do
+      {:ok, updated_node} ->
+        Audit.log_user_action(socket.assigns.current_user, "pin_bundle", "node", node.id,
+          project_id: socket.assigns.project.id,
+          metadata: %{bundle_id: bundle_id}
+        )
+
+        {:noreply,
+         socket
+         |> assign(node: updated_node, show_pin_form: false)
+         |> put_flash(:info, "Node pinned to bundle.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not pin node to bundle.")}
+    end
+  end
+
+  def handle_event("unpin_bundle", _, socket) do
+    node = socket.assigns.node
+
+    case Nodes.unpin_node(node.id) do
+      {:ok, updated_node} ->
+        Audit.log_user_action(socket.assigns.current_user, "unpin_bundle", "node", node.id,
+          project_id: socket.assigns.project.id
+        )
+
+        {:noreply,
+         socket
+         |> assign(node: updated_node)
+         |> put_flash(:info, "Node unpinned from bundle.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not unpin node.")}
+    end
+  end
+
+  def handle_event("set_version_constraints", params, socket) do
+    node = socket.assigns.node
+
+    opts = [
+      min_bundle_version: empty_to_nil(params["min_bundle_version"]),
+      max_bundle_version: empty_to_nil(params["max_bundle_version"])
+    ]
+
+    case Nodes.set_node_version_constraints(node.id, opts) do
+      {:ok, updated_node} ->
+        Audit.log_user_action(socket.assigns.current_user, "set_version_constraints", "node", node.id,
+          project_id: socket.assigns.project.id,
+          metadata: %{
+            min_bundle_version: opts[:min_bundle_version],
+            max_bundle_version: opts[:max_bundle_version]
+          }
+        )
+
+        {:noreply,
+         socket
+         |> assign(node: updated_node, show_pin_form: false)
+         |> put_flash(:info, "Version constraints updated.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not update version constraints.")}
+    end
+  end
+
+  defp empty_to_nil(nil), do: nil
+  defp empty_to_nil(""), do: nil
+  defp empty_to_nil(str), do: str
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -270,6 +348,92 @@ defmodule SentinelCpWeb.NodesLive.Show do
             <% else %>
               <p class="text-base-content/50 text-sm">No capabilities reported</p>
             <% end %>
+          </.k8s_section>
+
+          <.k8s_section title="Version Pinning">
+            <div class="flex justify-end mb-2">
+              <button class="btn btn-ghost btn-xs" phx-click="toggle_pin_form">
+                {if @show_pin_form, do: "Hide", else: "Configure"}
+              </button>
+            </div>
+
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-base-content/70">Pinned Bundle:</span>
+                <%= if @node.pinned_bundle_id do %>
+                  <div class="flex items-center gap-2">
+                    <.link navigate={bundle_path(@org, @project, @node.pinned_bundle_id)} class="font-mono text-primary hover:underline">
+                      {String.slice(@node.pinned_bundle_id, 0, 8)}…
+                    </.link>
+                    <button phx-click="unpin_bundle" class="btn btn-ghost btn-xs text-error">
+                      Unpin
+                    </button>
+                  </div>
+                <% else %>
+                  <span class="text-base-content/50">None</span>
+                <% end %>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-base-content/70">Min Version:</span>
+                <span class="font-mono">{@node.min_bundle_version || "—"}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-base-content/70">Max Version:</span>
+                <span class="font-mono">{@node.max_bundle_version || "—"}</span>
+              </div>
+            </div>
+
+            <div :if={@show_pin_form} class="mt-4 pt-4 border-t border-base-300 space-y-4">
+              <form phx-submit="pin_to_bundle" class="form-control">
+                <label class="label"><span class="label-text">Pin to Bundle</span></label>
+                <div class="flex gap-2">
+                  <select name="bundle_id" required class="select select-bordered select-sm flex-1">
+                    <option value="">Select a bundle</option>
+                    <option :for={bundle <- @compiled_bundles} value={bundle.id}>
+                      {bundle.version}
+                    </option>
+                  </select>
+                  <button type="submit" class="btn btn-primary btn-sm">
+                    Pin
+                  </button>
+                </div>
+                <label class="label">
+                  <span class="label-text-alt text-base-content/50">
+                    Pinned nodes won't be updated by rollouts.
+                  </span>
+                </label>
+              </form>
+
+              <div class="divider text-xs">OR Set Version Constraints</div>
+
+              <form phx-submit="set_version_constraints" class="space-y-3">
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="form-control">
+                    <label class="label"><span class="label-text text-xs">Min Version</span></label>
+                    <input
+                      type="text"
+                      name="min_bundle_version"
+                      value={@node.min_bundle_version}
+                      class="input input-bordered input-sm font-mono"
+                      placeholder="e.g. 1.0.0"
+                    />
+                  </div>
+                  <div class="form-control">
+                    <label class="label"><span class="label-text text-xs">Max Version</span></label>
+                    <input
+                      type="text"
+                      name="max_bundle_version"
+                      value={@node.max_bundle_version}
+                      class="input input-bordered input-sm font-mono"
+                      placeholder="e.g. 2.0.0"
+                    />
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-sm btn-outline w-full">
+                  Update Constraints
+                </button>
+              </form>
+            </div>
           </.k8s_section>
         </div>
       </div>
