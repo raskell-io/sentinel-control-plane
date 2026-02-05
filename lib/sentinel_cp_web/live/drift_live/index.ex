@@ -49,12 +49,7 @@ defmodule SentinelCpWeb.DriftLive.Index do
   end
 
   @impl true
-  def handle_info({:drift_detected, _node_id}, socket) do
-    {:noreply, load_data(socket, socket.assigns.org, socket.assigns.project, socket.assigns.status_filter)}
-  end
-
-  @impl true
-  def handle_info({:drift_resolved, _node_id}, socket) do
+  def handle_info({:drift_event, _type, _node_id}, socket) do
     {:noreply, load_data(socket, socket.assigns.org, socket.assigns.project, socket.assigns.status_filter)}
   end
 

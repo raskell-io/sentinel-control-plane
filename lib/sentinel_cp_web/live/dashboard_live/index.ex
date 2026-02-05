@@ -12,12 +12,18 @@ defmodule SentinelCpWeb.DashboardLive.Index do
         {:ok, push_navigate(socket, to: ~p"/orgs")}
 
       org ->
+        projects = Projects.list_projects(org_id: org.id)
+
         if connected?(socket) do
           :timer.send_interval(@refresh_interval, self(), :refresh)
+
+          # Subscribe to drift events for all projects
+          for project <- projects do
+            Phoenix.PubSub.subscribe(SentinelCp.PubSub, "drift:#{project.id}")
+          end
         end
 
         overview = Dashboard.get_org_overview(org.id)
-        projects = Projects.list_projects(org_id: org.id)
         activity = Dashboard.get_recent_activity(org.id, 15)
 
         {:ok,
@@ -36,6 +42,12 @@ defmodule SentinelCpWeb.DashboardLive.Index do
     overview = Dashboard.get_org_overview(socket.assigns.org.id)
     activity = Dashboard.get_recent_activity(socket.assigns.org.id, 15)
     {:noreply, assign(socket, overview: overview, activity: activity)}
+  end
+
+  @impl true
+  def handle_info({:drift_event, _type, _node_id}, socket) do
+    overview = Dashboard.get_org_overview(socket.assigns.org.id)
+    {:noreply, assign(socket, overview: overview)}
   end
 
   @impl true

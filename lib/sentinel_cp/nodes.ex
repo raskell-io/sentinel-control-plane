@@ -420,8 +420,9 @@ defmodule SentinelCp.Nodes do
       |> Repo.insert()
 
     case result do
-      {:ok, _event} ->
+      {:ok, event} ->
         SentinelCp.PromEx.SentinelPlugin.emit_drift_detected()
+        broadcast_drift_event(event, :detected)
         result
 
       _ ->
@@ -439,13 +440,30 @@ defmodule SentinelCp.Nodes do
       |> Repo.update()
 
     case result do
-      {:ok, _event} ->
+      {:ok, updated_event} ->
         SentinelCp.PromEx.SentinelPlugin.emit_drift_resolved(resolution)
+        broadcast_drift_event(updated_event, :resolved)
         result
 
       _ ->
         result
     end
+  end
+
+  defp broadcast_drift_event(event, type) do
+    # Broadcast to project-level topic for drift list page
+    Phoenix.PubSub.broadcast(
+      SentinelCp.PubSub,
+      "drift:#{event.project_id}",
+      {:drift_event, type, event.node_id}
+    )
+
+    # Broadcast to node-level topic for node detail page
+    Phoenix.PubSub.broadcast(
+      SentinelCp.PubSub,
+      "node:#{event.node_id}:drift",
+      {:drift_event, type, event.id}
+    )
   end
 
   @doc """

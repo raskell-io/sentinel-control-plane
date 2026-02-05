@@ -26,6 +26,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
           %{project_id: pid} = node when pid == project.id ->
             if connected?(socket) do
               Phoenix.PubSub.subscribe(SentinelCp.PubSub, "nodes:#{project.id}:#{node.id}")
+              Phoenix.PubSub.subscribe(SentinelCp.PubSub, "node:#{node.id}:drift")
               :timer.send_interval(10_000, self(), :refresh)
             end
 
@@ -104,6 +105,12 @@ defmodule SentinelCpWeb.NodesLive.Show do
        runtime_config: runtime_config,
        drift_events: drift_events
      )}
+  end
+
+  @impl true
+  def handle_info({:drift_event, _type, _event_id}, socket) do
+    drift_events = Nodes.list_node_drift_events(socket.assigns.node.id)
+    {:noreply, assign(socket, drift_events: drift_events)}
   end
 
   @impl true
