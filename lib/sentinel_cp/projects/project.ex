@@ -97,4 +97,19 @@ defmodule SentinelCp.Projects.Project do
   def approvals_needed(%__MODULE__{settings: settings}) do
     Map.get(settings || %{}, "approvals_needed", 1)
   end
+
+  @doc """
+  Returns the notification webhook URL for this project, if configured.
+  """
+  def notification_webhook(%__MODULE__{settings: settings}) do
+    Map.get(settings || %{}, "notification_webhook")
+  end
+
+  @doc """
+  Returns whether notifications are enabled for this project.
+  """
+  def notifications_enabled?(%__MODULE__{} = project) do
+    url = notification_webhook(project)
+    url != nil and url != ""
+  end
 end

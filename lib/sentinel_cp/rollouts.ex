@@ -9,7 +9,7 @@ defmodule SentinelCp.Rollouts do
   import Ecto.Query, warn: false
   alias SentinelCp.Repo
   alias SentinelCp.Rollouts.{Rollout, RolloutStep, NodeBundleStatus, RolloutApproval, TickWorker}
-  alias SentinelCp.{Bundles, Nodes, Orgs, Projects}
+  alias SentinelCp.{Bundles, Nodes, Notifications, Orgs, Projects}
 
   ## Rollout CRUD
 
@@ -133,13 +133,19 @@ defmodule SentinelCp.Rollouts do
       approval_count = count_approvals(rollout.id)
       needed = Projects.Project.approvals_needed(project)
 
-      if approval_count >= needed do
-        rollout
-        |> Rollout.approval_changeset("approved")
-        |> Repo.update()
-      else
-        {:ok, Repo.get!(Rollout, rollout.id)}
-      end
+      result =
+        if approval_count >= needed do
+          rollout
+          |> Rollout.approval_changeset("approved")
+          |> Repo.update()
+        else
+          {:ok, Repo.get!(Rollout, rollout.id)}
+        end
+
+      # Send notification
+      maybe_send_notification(fn -> Notifications.notify_rollout_approved(rollout, user) end)
+
+      result
     end
   end
 
@@ -160,12 +166,18 @@ defmodule SentinelCp.Rollouts do
       project = Projects.get_project!(rollout.project_id)
 
       with :ok <- validate_approver_role(project, user) do
-        rollout
-        |> Rollout.approval_changeset("rejected",
-          comment: comment,
-          rejected_by_id: user.id
-        )
-        |> Repo.update()
+        result =
+          rollout
+          |> Rollout.approval_changeset("rejected",
+            comment: comment,
+            rejected_by_id: user.id
+          )
+          |> Repo.update()
+
+        # Send notification
+        maybe_send_notification(fn -> Notifications.notify_rollout_rejected(rollout, user, comment) end)
+
+        result
       end
     end
   end
@@ -257,46 +269,56 @@ defmodule SentinelCp.Rollouts do
     else
       batches = chunk_into_batches(node_ids, rollout.strategy, rollout.batch_size)
 
-      Repo.transaction(fn ->
-        # Create steps
-        steps =
-          batches
-          |> Enum.with_index()
-          |> Enum.map(fn {batch_node_ids, index} ->
-            {:ok, step} =
-              %RolloutStep{}
-              |> RolloutStep.create_changeset(%{
-                rollout_id: rollout.id,
-                step_index: index,
-                node_ids: batch_node_ids
-              })
-              |> Repo.insert()
+      result =
+        Repo.transaction(fn ->
+          # Create steps
+          steps =
+            batches
+            |> Enum.with_index()
+            |> Enum.map(fn {batch_node_ids, index} ->
+              {:ok, step} =
+                %RolloutStep{}
+                |> RolloutStep.create_changeset(%{
+                  rollout_id: rollout.id,
+                  step_index: index,
+                  node_ids: batch_node_ids
+                })
+                |> Repo.insert()
 
-            step
-          end)
+              step
+            end)
 
-        # Create NodeBundleStatus records for all target nodes
-        for node_id <- node_ids do
-          %NodeBundleStatus{}
-          |> NodeBundleStatus.create_changeset(%{
-            node_id: node_id,
-            rollout_id: rollout.id,
-            bundle_id: rollout.bundle_id
-          })
-          |> Repo.insert!()
-        end
+          # Create NodeBundleStatus records for all target nodes
+          for node_id <- node_ids do
+            %NodeBundleStatus{}
+            |> NodeBundleStatus.create_changeset(%{
+              node_id: node_id,
+              rollout_id: rollout.id,
+              bundle_id: rollout.bundle_id
+            })
+            |> Repo.insert!()
+          end
 
-        # Transition to running
-        {:ok, updated} =
-          rollout
-          |> Rollout.state_changeset("running")
-          |> Repo.update()
+          # Transition to running
+          {:ok, updated} =
+            rollout
+            |> Rollout.state_changeset("running")
+            |> Repo.update()
 
-        # Enqueue first tick
-        enqueue_tick(rollout.id)
+          # Enqueue first tick
+          enqueue_tick(rollout.id)
 
-        {updated, steps}
-      end)
+          {updated, steps}
+        end)
+
+      case result do
+        {:ok, {updated, _steps}} ->
+          broadcast_and_notify(updated, "pending", "running")
+          result
+
+        error ->
+          error
+      end
     end
   end
 
@@ -336,9 +358,14 @@ defmodule SentinelCp.Rollouts do
   Pauses a running rollout.
   """
   def pause_rollout(%Rollout{state: "running"} = rollout) do
-    rollout
-    |> Rollout.state_changeset("paused")
-    |> Repo.update()
+    case rollout |> Rollout.state_changeset("paused") |> Repo.update() do
+      {:ok, updated} ->
+        broadcast_and_notify(updated, "running", "paused")
+        {:ok, updated}
+
+      error ->
+        error
+    end
   end
 
   def pause_rollout(%Rollout{}), do: {:error, :invalid_state}
@@ -363,15 +390,25 @@ defmodule SentinelCp.Rollouts do
   Cancels a running, paused, or pending (rejected) rollout.
   """
   def cancel_rollout(%Rollout{state: "pending", approval_state: "rejected"} = rollout) do
-    rollout
-    |> Rollout.state_changeset("cancelled")
-    |> Repo.update()
+    case rollout |> Rollout.state_changeset("cancelled") |> Repo.update() do
+      {:ok, updated} ->
+        broadcast_and_notify(updated, "pending", "cancelled")
+        {:ok, updated}
+
+      error ->
+        error
+    end
   end
 
   def cancel_rollout(%Rollout{state: state} = rollout) when state in ~w(running paused) do
-    rollout
-    |> Rollout.state_changeset("cancelled")
-    |> Repo.update()
+    case rollout |> Rollout.state_changeset("cancelled") |> Repo.update() do
+      {:ok, updated} ->
+        broadcast_and_notify(updated, state, "cancelled")
+        {:ok, updated}
+
+      error ->
+        error
+    end
   end
 
   def cancel_rollout(%Rollout{}), do: {:error, :invalid_state}
@@ -381,26 +418,36 @@ defmodule SentinelCp.Rollouts do
   back to their active_bundle_id.
   """
   def rollback_rollout(%Rollout{state: state} = rollout) when state in ~w(running paused) do
-    Repo.transaction(fn ->
-      # Cancel the rollout
-      {:ok, cancelled} =
-        rollout
-        |> Rollout.state_changeset("cancelled")
-        |> Repo.update()
+    result =
+      Repo.transaction(fn ->
+        # Cancel the rollout
+        {:ok, cancelled} =
+          rollout
+          |> Rollout.state_changeset("cancelled")
+          |> Repo.update()
 
-      # Revert staged_bundle_id for affected nodes
-      node_ids = get_rollout_node_ids(rollout.id)
+        # Revert staged_bundle_id for affected nodes
+        node_ids = get_rollout_node_ids(rollout.id)
 
-      if node_ids != [] do
-        from(n in Nodes.Node,
-          where: n.id in ^node_ids,
-          where: n.staged_bundle_id == ^rollout.bundle_id
-        )
-        |> Repo.update_all(set: [staged_bundle_id: nil])
-      end
+        if node_ids != [] do
+          from(n in Nodes.Node,
+            where: n.id in ^node_ids,
+            where: n.staged_bundle_id == ^rollout.bundle_id
+          )
+          |> Repo.update_all(set: [staged_bundle_id: nil])
+        end
 
-      cancelled
-    end)
+        cancelled
+      end)
+
+    case result do
+      {:ok, cancelled} ->
+        broadcast_and_notify(cancelled, state, "cancelled")
+        {:ok, cancelled}
+
+      error ->
+        error
+    end
   end
 
   def rollback_rollout(%Rollout{}), do: {:error, :invalid_state}
@@ -460,6 +507,8 @@ defmodule SentinelCp.Rollouts do
     bundle = Bundles.get_bundle!(rollout.bundle_id)
 
     if bundle.status != "compiled" do
+      old_state = rollout.state
+
       {:ok, _step} =
         step
         |> RolloutStep.state_changeset("failed",
@@ -467,14 +516,14 @@ defmodule SentinelCp.Rollouts do
         )
         |> Repo.update()
 
-      {:ok, _rollout} =
+      {:ok, failed_rollout} =
         rollout
         |> Rollout.state_changeset("failed",
           error: %{"reason" => "bundle_revoked", "bundle_id" => rollout.bundle_id}
         )
         |> Repo.update()
 
-      broadcast_rollout_update(rollout)
+      broadcast_and_notify(failed_rollout, old_state, "failed")
       {:ok, :bundle_revoked}
     else
       # Transition step to running
@@ -524,7 +573,7 @@ defmodule SentinelCp.Rollouts do
     cond do
       rollout.max_unavailable > 0 and unavailable_count > rollout.max_unavailable ->
         # Too many unavailable nodes — pause the rollout
-        {:ok, _} =
+        {:ok, paused_rollout} =
           rollout
           |> Rollout.state_changeset("paused",
             error: %{
@@ -535,7 +584,7 @@ defmodule SentinelCp.Rollouts do
           )
           |> Repo.update()
 
-        broadcast_rollout_update(rollout)
+        broadcast_and_notify(paused_rollout, "running", "paused")
         {:ok, :max_unavailable_exceeded}
 
       activated_count >= required and activated_count > 0 ->
@@ -682,6 +731,8 @@ defmodule SentinelCp.Rollouts do
     elapsed = DateTime.diff(DateTime.utc_now(), step.started_at, :second)
 
     if elapsed > deadline do
+      old_state = rollout.state
+
       # Step failed — deadline exceeded
       {:ok, _step} =
         step
@@ -691,7 +742,7 @@ defmodule SentinelCp.Rollouts do
         |> Repo.update()
 
       # Fail the rollout
-      {:ok, _rollout} =
+      {:ok, failed_rollout} =
         rollout
         |> Rollout.state_changeset("failed",
           error: %{
@@ -702,7 +753,7 @@ defmodule SentinelCp.Rollouts do
         )
         |> Repo.update()
 
-      broadcast_rollout_update(rollout)
+      broadcast_and_notify(failed_rollout, old_state, "failed")
       {:ok, :deadline_exceeded}
     else
       {:ok, :waiting}
@@ -710,12 +761,14 @@ defmodule SentinelCp.Rollouts do
   end
 
   defp complete_rollout(rollout) do
+    old_state = rollout.state
+
     {:ok, updated} =
       rollout
       |> Rollout.state_changeset("completed")
       |> Repo.update()
 
-    broadcast_rollout_update(rollout)
+    broadcast_and_notify(updated, old_state, "completed")
     {:ok, updated}
   end
 
@@ -798,5 +851,19 @@ defmodule SentinelCp.Rollouts do
       "rollouts:#{rollout.project_id}",
       {:rollout_updated, rollout.id}
     )
+  end
+
+  defp broadcast_and_notify(rollout, old_state, new_state) do
+    broadcast_rollout_update(rollout)
+    maybe_send_notification(fn ->
+      Notifications.notify_rollout_state_change(rollout, old_state, new_state)
+    end)
+  end
+
+  defp maybe_send_notification(fun) do
+    # Skip notifications in test mode to avoid sandbox issues
+    unless Application.get_env(:sentinel_cp, :env) == :test do
+      Task.start(fun)
+    end
   end
 end

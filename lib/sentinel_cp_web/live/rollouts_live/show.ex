@@ -114,29 +114,41 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
           |> assign(rollout: rollout, approvals: approvals, can_approve: false)
           |> put_flash(:info, "Approval recorded.")
 
-        # Auto-start if now approved
-        if rollout.approval_state == "approved" and rollout.state == "pending" do
-          case Rollouts.plan_rollout(rollout) do
-            {:ok, _} ->
-              rollout = Rollouts.get_rollout_with_details(rollout.id)
+        # Auto-start if now approved and not scheduled
+        cond do
+          rollout.approval_state == "approved" and rollout.state == "pending" and
+              rollout.scheduled_at != nil ->
+            # Scheduled rollout - will start at scheduled time
+            {:noreply,
+             put_flash(
+               socket,
+               :info,
+               "Rollout approved. Will start at #{Calendar.strftime(rollout.scheduled_at, "%Y-%m-%d %H:%M UTC")}."
+             )}
 
-              {:noreply,
-               assign(socket, rollout: rollout)
-               |> put_flash(:info, "Rollout approved and started.")}
+          rollout.approval_state == "approved" and rollout.state == "pending" ->
+            case Rollouts.plan_rollout(rollout) do
+              {:ok, _} ->
+                rollout = Rollouts.get_rollout_with_details(rollout.id)
 
-            {:error, :no_target_nodes} ->
-              {:noreply, put_flash(socket, :error, "Rollout approved but no target nodes found.")}
+                {:noreply,
+                 assign(socket, rollout: rollout)
+                 |> put_flash(:info, "Rollout approved and started.")}
 
-            {:error, reason} ->
-              {:noreply,
-               put_flash(
-                 socket,
-                 :error,
-                 "Rollout approved but failed to start: #{inspect(reason)}"
-               )}
-          end
-        else
-          {:noreply, socket}
+              {:error, :no_target_nodes} ->
+                {:noreply, put_flash(socket, :error, "Rollout approved but no target nodes found.")}
+
+              {:error, reason} ->
+                {:noreply,
+                 put_flash(
+                   socket,
+                   :error,
+                   "Rollout approved but failed to start: #{inspect(reason)}"
+                 )}
+            end
+
+          true ->
+            {:noreply, socket}
         end
 
       {:error, :self_approval} ->
@@ -315,6 +327,12 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
           <span :if={@rollout.approval_state == "approved"} class="badge badge-sm badge-success">
             approved
           </span>
+          <span
+            :if={@rollout.state == "pending" and @rollout.scheduled_at}
+            class="badge badge-sm badge-info"
+          >
+            scheduled
+          </span>
         </:badge>
         <:action>
           <button
@@ -457,6 +475,11 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
             <:item label="Strategy">{@rollout.strategy}</:item>
             <:item label="Batch Size">{@rollout.batch_size}</:item>
             <:item label="Target">{format_target(@rollout.target_selector)}</:item>
+            <:item :if={@rollout.scheduled_at} label="Scheduled">
+              <span class="text-info">
+                {Calendar.strftime(@rollout.scheduled_at, "%Y-%m-%d %H:%M:%S UTC")}
+              </span>
+            </:item>
             <:item label="Started">
               {if @rollout.started_at,
                 do: Calendar.strftime(@rollout.started_at, "%Y-%m-%d %H:%M:%S UTC"),

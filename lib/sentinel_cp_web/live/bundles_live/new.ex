@@ -24,7 +24,10 @@ defmodule SentinelCpWeb.BundlesLive.New do
             input_mode: "paste",
             validation_result: nil,
             form_version: latest_version,
-            form_config: ""
+            form_config: "",
+            char_count: 0,
+            line_count: 1,
+            drag_over: false
           )
           |> allow_upload(:config_file,
             accept: ~w(.kdl),
@@ -43,7 +46,59 @@ defmodule SentinelCpWeb.BundlesLive.New do
 
   @impl true
   def handle_event("validate", %{"version" => version, "config_source" => config}, socket) do
-    {:noreply, assign(socket, form_version: version, form_config: config, validation_result: nil)}
+    char_count = String.length(config)
+    line_count = max(1, length(String.split(config, "\n")))
+
+    {:noreply,
+     assign(socket,
+       form_version: version,
+       form_config: config,
+       validation_result: nil,
+       char_count: char_count,
+       line_count: line_count
+     )}
+  end
+
+  @impl true
+  def handle_event("use_template", _, socket) do
+    template = sample_config_template()
+    char_count = String.length(template)
+    line_count = length(String.split(template, "\n"))
+
+    {:noreply,
+     assign(socket,
+       form_config: template,
+       input_mode: "paste",
+       char_count: char_count,
+       line_count: line_count,
+       validation_result: nil
+     )}
+  end
+
+  @impl true
+  def handle_event("drag_enter", _, socket) do
+    {:noreply, assign(socket, drag_over: true)}
+  end
+
+  @impl true
+  def handle_event("drag_leave", _, socket) do
+    {:noreply, assign(socket, drag_over: false)}
+  end
+
+  @impl true
+  def handle_event("drop", %{"content" => content}, socket) do
+    char_count = String.length(content)
+    line_count = max(1, length(String.split(content, "\n")))
+
+    {:noreply,
+     assign(socket,
+       form_config: content,
+       input_mode: "paste",
+       char_count: char_count,
+       line_count: line_count,
+       drag_over: false,
+       validation_result: nil
+     )}
   end
 
   @impl true
@@ -134,17 +189,44 @@ defmodule SentinelCpWeb.BundlesLive.New do
             >
               Upload File
             </button>
+            <div class="flex-1"></div>
+            <button
+              type="button"
+              phx-click="use_template"
+              class="btn btn-ghost btn-sm"
+            >
+              Use Template
+            </button>
           </div>
 
           <div :if={@input_mode == "paste"} class="form-control">
-            <label class="label"><span class="label-text font-medium">KDL Configuration</span></label>
-            <textarea
-              name="config_source"
-              rows="16"
-              class="textarea textarea-bordered textarea-sm font-mono text-sm w-full"
-              placeholder="// Paste your sentinel.kdl config here"
-              phx-debounce="500"
-            >{@form_config}</textarea>
+            <div class="flex items-center justify-between">
+              <label class="label"><span class="label-text font-medium">KDL Configuration</span></label>
+              <span class="text-xs text-base-content/50">
+                {@line_count} lines, {@char_count} chars
+              </span>
+            </div>
+            <div
+              class={[
+                "relative",
+                @drag_over && "ring-2 ring-primary ring-offset-2 rounded"
+              ]}
+              phx-hook="DropZone"
+              id="config-drop-zone"
+            >
+              <textarea
+                name="config_source"
+                rows="20"
+                class="textarea textarea-bordered textarea-sm font-mono text-sm w-full leading-relaxed"
+                placeholder="// Paste your sentinel.kdl config here, or drag and drop a .kdl file"
+                phx-debounce="300"
+              >{@form_config}</textarea>
+            </div>
+            <label class="label">
+              <span class="label-text-alt text-base-content/50">
+                Supports .kdl syntax. Drag and drop files or paste directly.
+              </span>
+            </label>
           </div>
 
           <div :if={@input_mode == "upload"} class="form-control">
@@ -244,4 +326,53 @@ defmodule SentinelCpWeb.BundlesLive.New do
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 1)} KB"
   defp format_bytes(bytes), do: "#{Float.round(bytes / 1_048_576, 1)} MB"
+
+  defp sample_config_template do
+    """
+    // Sentinel Configuration
+    // See https://sentinel.io/docs/config for full reference
+
+    // Global settings
+    settings {
+        log_level "info"
+        metrics_port 9090
+    }
+
+    // Route definitions
+    routes {
+        // API routes
+        route "/api/v1/*" {
+            upstream "http://api-backend:8080"
+            timeout 30s
+            retry {
+                attempts 3
+                backoff "exponential"
+            }
+        }
+
+        // Static assets
+        route "/static/*" {
+            upstream "http://cdn:80"
+            cache {
+                ttl 3600
+                vary "Accept-Encoding"
+            }
+        }
+
+        // Health check endpoint
+        route "/health" {
+            respond 200 "OK"
+        }
+    }
+
+    // Rate limiting
+    rate_limits {
+        limit "api" {
+            requests 100
+            window 60s
+            by "client_ip"
+        }
+    }
+    """
+  end
 end

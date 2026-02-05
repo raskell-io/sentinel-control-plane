@@ -31,6 +31,9 @@ defmodule SentinelCp.Rollouts.Rollout do
     field :rejected_by_id, :binary_id
     field :rejected_at, :utc_datetime
 
+    # Scheduled rollout
+    field :scheduled_at, :utc_datetime
+
     belongs_to :project, SentinelCp.Projects.Project
     belongs_to :bundle, SentinelCp.Bundles.Bundle
     has_many :steps, SentinelCp.Rollouts.RolloutStep
@@ -51,7 +54,8 @@ defmodule SentinelCp.Rollouts.Rollout do
       :max_unavailable,
       :progress_deadline_seconds,
       :health_gates,
-      :created_by_id
+      :created_by_id,
+      :scheduled_at
     ])
     |> validate_required([:project_id, :bundle_id, :target_selector])
     |> validate_inclusion(:strategy, @strategies)
@@ -60,6 +64,7 @@ defmodule SentinelCp.Rollouts.Rollout do
     |> validate_number(:progress_deadline_seconds, greater_than: 0)
     |> validate_target_selector()
     |> validate_health_gates()
+    |> validate_scheduled_at()
     |> put_change(:state, "pending")
     |> foreign_key_constraint(:project_id)
     |> foreign_key_constraint(:bundle_id)
@@ -104,6 +109,18 @@ defmodule SentinelCp.Rollouts.Rollout do
         []
       else
         [health_gates: "unknown keys: #{Enum.join(unknown, ", ")}"]
+      end
+    end)
+  end
+
+  defp validate_scheduled_at(changeset) do
+    validate_change(changeset, :scheduled_at, fn :scheduled_at, scheduled_at ->
+      now = DateTime.utc_now()
+
+      if DateTime.compare(scheduled_at, now) == :gt do
+        []
+      else
+        [scheduled_at: "must be in the future"]
       end
     end)
   end

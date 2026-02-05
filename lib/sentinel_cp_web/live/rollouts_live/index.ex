@@ -56,13 +56,16 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
           %{"type" => "all"}
       end
 
+    scheduled_at = parse_scheduled_at(params["scheduled_at"])
+
     attrs = %{
       project_id: project.id,
       bundle_id: params["bundle_id"],
       target_selector: target_selector,
       strategy: params["strategy"] || "rolling",
       batch_size: parse_int(params["batch_size"], 1),
-      created_by_id: current_user && current_user.id
+      created_by_id: current_user && current_user.id,
+      scheduled_at: scheduled_at
     }
 
     case Rollouts.create_rollout(attrs) do
@@ -70,31 +73,42 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
         # Submit for approval first
         {:ok, rollout} = Rollouts.submit_for_approval(rollout)
 
-        # Try to plan if approved or not required
-        if Rollouts.can_start_rollout?(rollout) do
-          case Rollouts.plan_rollout(rollout) do
-            {:ok, _} ->
-              rollouts = Rollouts.list_rollouts(project.id)
-
-              {:noreply,
-               socket
-               |> assign(rollouts: rollouts, show_form: false)
-               |> put_flash(:info, "Rollout created and started.")}
-
-            {:error, :no_target_nodes} ->
-              {:noreply, put_flash(socket, :error, "No target nodes matched the selector.")}
-
-            {:error, reason} ->
-              {:noreply, put_flash(socket, :error, "Failed to plan rollout: #{inspect(reason)}")}
-          end
-        else
-          # Approval required
+        # If scheduled, don't start immediately
+        if rollout.scheduled_at do
           rollouts = Rollouts.list_rollouts(project.id)
+          scheduled_time = Calendar.strftime(rollout.scheduled_at, "%Y-%m-%d %H:%M UTC")
 
           {:noreply,
            socket
            |> assign(rollouts: rollouts, show_form: false)
-           |> put_flash(:info, "Rollout created. Awaiting approval.")}
+           |> put_flash(:info, "Rollout scheduled for #{scheduled_time}.")}
+        else
+          # Try to plan if approved or not required
+          if Rollouts.can_start_rollout?(rollout) do
+            case Rollouts.plan_rollout(rollout) do
+              {:ok, _} ->
+                rollouts = Rollouts.list_rollouts(project.id)
+
+                {:noreply,
+                 socket
+                 |> assign(rollouts: rollouts, show_form: false)
+                 |> put_flash(:info, "Rollout created and started.")}
+
+              {:error, :no_target_nodes} ->
+                {:noreply, put_flash(socket, :error, "No target nodes matched the selector.")}
+
+              {:error, reason} ->
+                {:noreply, put_flash(socket, :error, "Failed to plan rollout: #{inspect(reason)}")}
+            end
+          else
+            # Approval required
+            rollouts = Rollouts.list_rollouts(project.id)
+
+            {:noreply,
+             socket
+             |> assign(rollouts: rollouts, show_form: false)
+             |> put_flash(:info, "Rollout created. Awaiting approval.")}
+          end
         end
 
       {:error, :bundle_not_compiled} ->
@@ -196,8 +210,23 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
                 />
               </div>
             </div>
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Schedule (optional)</span>
+              </label>
+              <input
+                type="datetime-local"
+                name="scheduled_at"
+                class="input input-bordered input-sm w-full max-w-xs"
+              />
+              <label class="label">
+                <span class="label-text-alt text-base-content/50">
+                  Leave empty to start immediately. Uses UTC timezone.
+                </span>
+              </label>
+            </div>
             <div class="flex gap-2">
-              <button type="submit" class="btn btn-primary btn-sm">Create & Start</button>
+              <button type="submit" class="btn btn-primary btn-sm">Create Rollout</button>
               <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_form">
                 Cancel
               </button>
@@ -253,6 +282,13 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
                   class="badge badge-sm badge-error"
                 >
                   rejected
+                </span>
+                <span
+                  :if={rollout.state == "pending" and rollout.scheduled_at}
+                  class="badge badge-sm badge-info"
+                  title={"Scheduled: #{Calendar.strftime(rollout.scheduled_at, "%Y-%m-%d %H:%M UTC")}"}
+                >
+                  scheduled
                 </span>
               </td>
               <td class="font-mono text-sm">{rollout.bundle_id |> String.slice(0, 8)}</td>
@@ -329,6 +365,16 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
     case Integer.parse(str) do
       {n, _} -> n
       :error -> default
+    end
+  end
+
+  defp parse_scheduled_at(nil), do: nil
+  defp parse_scheduled_at(""), do: nil
+
+  defp parse_scheduled_at(str) do
+    case NaiveDateTime.from_iso8601(str <> ":00") do
+      {:ok, naive} -> DateTime.from_naive!(naive, "Etc/UTC")
+      _ -> nil
     end
   end
 end

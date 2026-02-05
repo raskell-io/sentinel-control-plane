@@ -25,11 +25,53 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/sentinel_cp"
 import topbar from "../vendor/topbar"
 
+// Custom hooks for LiveView components
+const Hooks = {
+  DropZone: {
+    mounted() {
+      const el = this.el
+      const textarea = el.querySelector('textarea')
+
+      el.addEventListener('dragenter', (e) => {
+        e.preventDefault()
+        this.pushEvent('drag_enter', {})
+      })
+
+      el.addEventListener('dragover', (e) => {
+        e.preventDefault()
+      })
+
+      el.addEventListener('dragleave', (e) => {
+        e.preventDefault()
+        // Only trigger if leaving the drop zone entirely
+        if (!el.contains(e.relatedTarget)) {
+          this.pushEvent('drag_leave', {})
+        }
+      })
+
+      el.addEventListener('drop', (e) => {
+        e.preventDefault()
+        const files = e.dataTransfer.files
+        if (files.length > 0) {
+          const file = files[0]
+          if (file.name.endsWith('.kdl') || file.type === 'text/plain' || file.type === '') {
+            const reader = new FileReader()
+            reader.onload = (event) => {
+              this.pushEvent('drop', { content: event.target.result })
+            }
+            reader.readAsText(file)
+          }
+        }
+      })
+    }
+  }
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, ...Hooks},
 })
 
 // Show progress bar on live navigation and form submits

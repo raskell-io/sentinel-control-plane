@@ -29,6 +29,9 @@ config :logger, level: :warning
 # Disable Oban queues during tests (use Oban.Testing)
 config :sentinel_cp, Oban, testing: :inline
 
+# Mark test environment (used to skip async notifications)
+config :sentinel_cp, :env, :test
+
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
 
