@@ -17,6 +17,8 @@ defmodule SentinelCpWeb.BundlesLive.Index do
         end
 
         bundles = Bundles.list_bundles(project.id)
+        environments = Projects.list_environments(project.id)
+        promotions_map = get_promotions_map(bundles)
 
         {:ok,
          assign(socket,
@@ -24,6 +26,8 @@ defmodule SentinelCpWeb.BundlesLive.Index do
            org: org,
            project: project,
            bundles: bundles,
+           environments: environments,
+           promotions_map: promotions_map,
            show_upload: false
          )}
     end
@@ -90,13 +94,30 @@ defmodule SentinelCpWeb.BundlesLive.Index do
   @impl true
   def handle_info({:bundle_compiled, _bundle_id}, socket) do
     bundles = Bundles.list_bundles(socket.assigns.project.id)
-    {:noreply, assign(socket, bundles: bundles)}
+    promotions_map = get_promotions_map(bundles)
+    {:noreply, assign(socket, bundles: bundles, promotions_map: promotions_map)}
   end
 
   @impl true
   def handle_info({:bundle_failed, _bundle_id}, socket) do
     bundles = Bundles.list_bundles(socket.assigns.project.id)
-    {:noreply, assign(socket, bundles: bundles)}
+    promotions_map = get_promotions_map(bundles)
+    {:noreply, assign(socket, bundles: bundles, promotions_map: promotions_map)}
+  end
+
+  defp get_promotions_map(bundles) do
+    bundle_ids = Enum.map(bundles, & &1.id)
+
+    if bundle_ids == [] do
+      %{}
+    else
+      import Ecto.Query
+
+      SentinelCp.Bundles.BundlePromotion
+      |> where([p], p.bundle_id in ^bundle_ids)
+      |> SentinelCp.Repo.all()
+      |> Enum.group_by(& &1.bundle_id)
+    end
   end
 
   @impl true
@@ -156,6 +177,7 @@ defmodule SentinelCpWeb.BundlesLive.Index do
             <tr>
               <th class="text-xs uppercase">Version</th>
               <th class="text-xs uppercase">Status</th>
+              <th :if={@environments != []} class="text-xs uppercase">Environments</th>
               <th class="text-xs uppercase">Size</th>
               <th class="text-xs uppercase">Checksum</th>
               <th class="text-xs uppercase">Created</th>
@@ -183,6 +205,12 @@ defmodule SentinelCpWeb.BundlesLive.Index do
                 ]}>
                   {bundle.status}
                 </span>
+              </td>
+              <td :if={@environments != []}>
+                <.env_badges
+                  environments={@environments}
+                  promotions={Map.get(@promotions_map, bundle.id, [])}
+                />
               </td>
               <td class="font-mono text-sm">
                 {if bundle.size_bytes, do: format_bytes(bundle.size_bytes), else: "—"}
@@ -244,4 +272,30 @@ defmodule SentinelCpWeb.BundlesLive.Index do
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 1)} KB"
   defp format_bytes(bytes), do: "#{Float.round(bytes / 1_048_576, 1)} MB"
+
+  attr :environments, :list, required: true
+  attr :promotions, :list, required: true
+
+  defp env_badges(assigns) do
+    promoted_env_ids = MapSet.new(assigns.promotions, & &1.environment_id)
+
+    promoted_envs =
+      assigns.environments
+      |> Enum.filter(fn env -> MapSet.member?(promoted_env_ids, env.id) end)
+
+    assigns = assign(assigns, :promoted_envs, promoted_envs)
+
+    ~H"""
+    <div class="flex flex-wrap gap-1">
+      <span
+        :for={env <- @promoted_envs}
+        class="badge badge-xs"
+        style={"background-color: #{env.color}; color: white"}
+      >
+        {env.name}
+      </span>
+      <span :if={@promoted_envs == []} class="text-base-content/40 text-xs">—</span>
+    </div>
+    """
+  end
 end

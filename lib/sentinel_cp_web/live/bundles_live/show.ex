@@ -16,6 +16,8 @@ defmodule SentinelCpWeb.BundlesLive.Show do
 
       assigned_nodes = get_assigned_nodes(bundle, project.id)
       previous_bundle = get_previous_bundle(bundle, project.id)
+      environments = Projects.list_environments(project.id)
+      promotions = Bundles.list_bundle_promotions(bundle.id)
 
       {:ok,
        assign(socket,
@@ -24,7 +26,9 @@ defmodule SentinelCpWeb.BundlesLive.Show do
          project: project,
          bundle: bundle,
          assigned_nodes: assigned_nodes,
-         previous_bundle: previous_bundle
+         previous_bundle: previous_bundle,
+         environments: environments,
+         promotions: promotions
        )}
     else
       _ ->
@@ -93,6 +97,38 @@ defmodule SentinelCpWeb.BundlesLive.Show do
     end
   end
 
+  def handle_event("promote", %{"environment-id" => env_id}, socket) do
+    bundle = socket.assigns.bundle
+    current_user = socket.assigns.current_user
+
+    case Bundles.promote_bundle(bundle.id, env_id, promoted_by_id: current_user.id) do
+      {:ok, _promotion} ->
+        Audit.log_user_action(current_user, "promote", "bundle", bundle.id,
+          project_id: socket.assigns.project.id,
+          metadata: %{environment_id: env_id}
+        )
+
+        promotions = Bundles.list_bundle_promotions(bundle.id)
+
+        {:noreply,
+         socket
+         |> assign(promotions: promotions)
+         |> put_flash(:info, "Bundle promoted successfully.")}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        error = format_changeset_error(changeset)
+        {:noreply, put_flash(socket, :error, "Could not promote bundle: #{error}")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Could not promote bundle: #{inspect(reason)}")}
+    end
+  end
+
+  defp format_changeset_error(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)
+    |> Enum.map_join(", ", fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end)
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -147,6 +183,22 @@ defmodule SentinelCpWeb.BundlesLive.Show do
           </button>
         </:action>
       </.detail_header>
+
+      <div :if={@environments != [] and @bundle.status == "compiled"} class="mb-4">
+        <.k8s_section title="Promotion Pipeline">
+          <div class="flex flex-wrap items-center gap-2">
+            <%= for {env, index} <- Enum.with_index(@environments) do %>
+              <.promotion_badge
+                environment={env}
+                promoted={is_promoted?(@promotions, env.id)}
+                can_promote={can_promote?(@promotions, @environments, env)}
+                is_last={index == length(@environments) - 1}
+              />
+              <span :if={index < length(@environments) - 1} class="text-base-content/30">→</span>
+            <% end %>
+          </div>
+        </.k8s_section>
+      </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <.k8s_section title="Metadata">
@@ -268,4 +320,58 @@ defmodule SentinelCpWeb.BundlesLive.Show do
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 1)} KB"
   defp format_bytes(bytes), do: "#{Float.round(bytes / 1_048_576, 1)} MB"
+
+  defp is_promoted?(promotions, env_id) do
+    Enum.any?(promotions, fn p -> p.environment_id == env_id end)
+  end
+
+  defp can_promote?(promotions, environments, env) do
+    # Can promote to first environment if not already promoted
+    # Can promote to subsequent environments if promoted to previous one
+    env_index = Enum.find_index(environments, fn e -> e.id == env.id end)
+
+    cond do
+      is_promoted?(promotions, env.id) ->
+        false
+
+      env_index == 0 ->
+        true
+
+      true ->
+        prev_env = Enum.at(environments, env_index - 1)
+        is_promoted?(promotions, prev_env.id)
+    end
+  end
+
+  attr :environment, :map, required: true
+  attr :promoted, :boolean, required: true
+  attr :can_promote, :boolean, required: true
+  attr :is_last, :boolean, required: true
+
+  defp promotion_badge(assigns) do
+    ~H"""
+    <div class="flex items-center gap-1">
+      <span
+        :if={@promoted}
+        class="badge badge-sm"
+        style={"background-color: #{@environment.color}; color: white"}
+      >
+        <.icon name="hero-check" class="w-3 h-3 mr-1" />
+        {@environment.name}
+      </span>
+      <span :if={!@promoted and !@can_promote} class="badge badge-sm badge-ghost badge-outline">
+        {@environment.name}
+      </span>
+      <button
+        :if={!@promoted and @can_promote}
+        phx-click="promote"
+        phx-value-environment-id={@environment.id}
+        class="btn btn-xs btn-outline"
+        style={"border-color: #{@environment.color}; color: #{@environment.color}"}
+      >
+        Promote to {@environment.name}
+      </button>
+    </div>
+    """
+  end
 end
