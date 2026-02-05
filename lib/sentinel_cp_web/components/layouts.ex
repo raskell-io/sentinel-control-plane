@@ -210,6 +210,13 @@ defmodule SentinelCpWeb.Layouts do
           current={@path}
           match="/audit"
         />
+        <.sidebar_link
+          path={~p"/api-keys"}
+          icon="hero-key"
+          label="API Keys"
+          current={@path}
+          match="/api-keys"
+        />
       </div>
     </nav>
     """
