@@ -174,6 +174,13 @@ defmodule SentinelCpWeb.Layouts do
           current={@path}
           match="/environments"
         />
+        <.sidebar_link
+          path={~p"/orgs/#{@org_slug}/projects/#{@project_slug}/webhooks"}
+          icon="hero-link"
+          label="Webhooks"
+          current={@path}
+          match="/webhooks"
+        />
       </div>
 
       <div :if={@has_org}>
@@ -223,6 +230,20 @@ defmodule SentinelCpWeb.Layouts do
           label="Approvals"
           current={@path}
           match="/approvals"
+        />
+        <.sidebar_link
+          path={~p"/schedule"}
+          icon="hero-calendar"
+          label="Schedule"
+          current={@path}
+          match="/schedule"
+        />
+        <.sidebar_link
+          path={~p"/profile"}
+          icon="hero-user-circle"
+          label="Profile"
+          current={@path}
+          match="/profile"
         />
       </div>
     </nav>

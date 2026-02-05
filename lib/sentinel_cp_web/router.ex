@@ -116,6 +116,7 @@ defmodule SentinelCpWeb.Router do
     live "/projects/:project_slug/health-checks", HealthChecksLive.Index, :index
     live "/projects/:project_slug/environments", EnvironmentsLive.Index, :index
     live "/projects/:project_slug/validation-rules", ValidationRulesLive.Index, :index
+    live "/projects/:project_slug/webhooks", WebhooksLive.Index, :index
 
     # Org-scoped dashboard
     live "/orgs/:org_slug/dashboard", DashboardLive.Index, :index
@@ -137,6 +138,7 @@ defmodule SentinelCpWeb.Router do
     live "/orgs/:org_slug/projects/:project_slug/health-checks", HealthChecksLive.Index, :index
     live "/orgs/:org_slug/projects/:project_slug/environments", EnvironmentsLive.Index, :index
     live "/orgs/:org_slug/projects/:project_slug/validation-rules", ValidationRulesLive.Index, :index
+    live "/orgs/:org_slug/projects/:project_slug/webhooks", WebhooksLive.Index, :index
   end
 
   # Admin-only browser routes
@@ -147,6 +149,8 @@ defmodule SentinelCpWeb.Router do
     get "/audit/export", AuditController, :export
     live "/api-keys", ApiKeysLive.Index, :index
     live "/approvals", ApprovalsLive.Index, :index
+    live "/schedule", ScheduleLive.Index, :index
+    live "/profile", ProfileLive.Index, :index
   end
 
   # Webhook endpoints (verified by signature, not API key)

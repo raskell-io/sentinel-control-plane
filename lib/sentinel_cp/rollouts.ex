@@ -387,6 +387,37 @@ defmodule SentinelCp.Rollouts do
   end
 
   @doc """
+  Lists all scheduled rollouts (pending with scheduled_at in the future).
+  Returns rollouts with project and bundle preloaded, ordered by scheduled_at.
+  """
+  def list_scheduled_rollouts(opts \\ []) do
+    now = DateTime.utc_now()
+
+    query =
+      from(r in Rollout,
+        where: r.state == "pending",
+        where: not is_nil(r.scheduled_at),
+        where: r.scheduled_at > ^now,
+        preload: [:project, :bundle],
+        order_by: [asc: r.scheduled_at]
+      )
+
+    query =
+      case opts[:org_id] do
+        nil ->
+          query
+
+        org_id ->
+          from(r in query,
+            join: p in assoc(r, :project),
+            where: p.org_id == ^org_id
+          )
+      end
+
+    Repo.all(query)
+  end
+
+  @doc """
   Counts the number of approvals for a rollout.
   """
   def count_approvals(rollout_id) do

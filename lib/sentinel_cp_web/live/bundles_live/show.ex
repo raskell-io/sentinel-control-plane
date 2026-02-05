@@ -2,6 +2,7 @@ defmodule SentinelCpWeb.BundlesLive.Show do
   use SentinelCpWeb, :live_view
 
   alias SentinelCp.{Audit, Bundles, Orgs, Projects, Nodes}
+  alias SentinelCp.Bundles.Sbom
 
   @impl true
   def mount(%{"project_slug" => slug, "id" => bundle_id} = params, _session, socket) do
@@ -18,6 +19,7 @@ defmodule SentinelCpWeb.BundlesLive.Show do
       previous_bundle = get_previous_bundle(bundle, project.id)
       environments = Projects.list_environments(project.id)
       promotions = Bundles.list_bundle_promotions(bundle.id)
+      sbom_components = get_sbom_components(bundle)
 
       {:ok,
        assign(socket,
@@ -28,7 +30,8 @@ defmodule SentinelCpWeb.BundlesLive.Show do
          assigned_nodes: assigned_nodes,
          previous_bundle: previous_bundle,
          environments: environments,
-         promotions: promotions
+         promotions: promotions,
+         sbom_components: sbom_components
        )}
     else
       _ ->
@@ -275,6 +278,54 @@ defmodule SentinelCpWeb.BundlesLive.Show do
             <pre class="bg-base-300 p-4 rounded text-sm font-mono whitespace-pre-wrap overflow-x-auto">{Jason.encode!(@bundle.manifest, pretty: true)}</pre>
           </.k8s_section>
         </div>
+
+        <div :if={@bundle.status == "compiled"} class="lg:col-span-2">
+          <.k8s_section title="Software Bill of Materials (SBOM)">
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm text-base-content/50">
+                  CycloneDX 1.5 format • {length(@sbom_components)} component(s)
+                </div>
+                <a
+                  href={"/api/v1/projects/#{@project.slug}/bundles/#{@bundle.id}/sbom"}
+                  class="btn btn-outline btn-xs"
+                  target="_blank"
+                >
+                  Download JSON
+                </a>
+              </div>
+
+              <div :if={@sbom_components == []} class="text-base-content/50 text-sm">
+                No components detected in configuration.
+              </div>
+
+              <table :if={@sbom_components != []} class="table table-sm">
+                <thead class="bg-base-300">
+                  <tr>
+                    <th class="text-xs uppercase">Component</th>
+                    <th class="text-xs uppercase">Type</th>
+                    <th class="text-xs uppercase">Group</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr :for={component <- @sbom_components}>
+                    <td class="font-mono text-sm">{component["name"]}</td>
+                    <td>
+                      <span class={[
+                        "badge badge-sm",
+                        component["type"] == "framework" && "badge-primary",
+                        component["type"] == "library" && "badge-ghost"
+                      ]}>
+                        {component["type"]}
+                      </span>
+                    </td>
+                    <td class="text-sm text-base-content/70">{component["group"]}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </.k8s_section>
+        </div>
       </div>
     </div>
     """
@@ -320,6 +371,13 @@ defmodule SentinelCpWeb.BundlesLive.Show do
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 1)} KB"
   defp format_bytes(bytes), do: "#{Float.round(bytes / 1_048_576, 1)} MB"
+
+  defp get_sbom_components(bundle) do
+    case Sbom.generate(bundle) do
+      {:ok, sbom} -> sbom["components"] || []
+      _ -> []
+    end
+  end
 
   defp is_promoted?(promotions, env_id) do
     Enum.any?(promotions, fn p -> p.environment_id == env_id end)
