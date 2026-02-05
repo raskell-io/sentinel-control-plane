@@ -151,6 +151,22 @@ defmodule SentinelCpWeb.Layouts do
           current={@path}
           match="/drift"
         />
+
+        <div class="sidebar-section-title mt-4">Settings</div>
+        <.sidebar_link
+          path={~p"/orgs/#{@org_slug}/projects/#{@project_slug}/node-groups"}
+          icon="hero-rectangle-group"
+          label="Node Groups"
+          current={@path}
+          match="/node-groups"
+        />
+        <.sidebar_link
+          path={~p"/orgs/#{@org_slug}/projects/#{@project_slug}/health-checks"}
+          icon="hero-heart"
+          label="Health Checks"
+          current={@path}
+          match="/health-checks"
+        />
       </div>
 
       <div :if={@has_org}>
