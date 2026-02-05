@@ -31,10 +31,18 @@ defmodule SentinelCp.Nodes.Node do
     field :token_expires_at, :utc_datetime
     field :auth_method, :string, default: "static_key"
 
+    # Version pinning
+    field :pinned_bundle_id, :binary_id
+    field :min_bundle_version, :string
+    field :max_bundle_version, :string
+
     belongs_to :project, SentinelCp.Projects.Project
     has_many :heartbeats, SentinelCp.Nodes.NodeHeartbeat
     has_many :events, SentinelCp.Nodes.NodeEvent
     has_one :runtime_config, SentinelCp.Nodes.NodeRuntimeConfig
+
+    many_to_many :node_groups, SentinelCp.Nodes.NodeGroup,
+      join_through: SentinelCp.Nodes.NodeGroupMembership
 
     timestamps(type: :utc_datetime)
   end

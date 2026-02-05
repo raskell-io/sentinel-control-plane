@@ -670,4 +670,180 @@ defmodule SentinelCp.Nodes do
       ]
     )
   end
+
+  ## Node Groups
+
+  alias SentinelCp.Nodes.{NodeGroup, NodeGroupMembership}
+
+  @doc """
+  Lists all node groups for a project.
+  """
+  def list_node_groups(project_id) do
+    from(g in NodeGroup,
+      where: g.project_id == ^project_id,
+      order_by: [asc: g.name],
+      preload: [:nodes]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a node group by ID.
+  """
+  def get_node_group(id), do: Repo.get(NodeGroup, id)
+
+  @doc """
+  Gets a node group by ID, raises if not found.
+  """
+  def get_node_group!(id), do: Repo.get!(NodeGroup, id) |> Repo.preload(:nodes)
+
+  @doc """
+  Gets a node group by name within a project.
+  """
+  def get_node_group_by_name(project_id, name) do
+    Repo.get_by(NodeGroup, project_id: project_id, name: name)
+  end
+
+  @doc """
+  Creates a node group.
+  """
+  def create_node_group(attrs) do
+    %NodeGroup{}
+    |> NodeGroup.create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a node group.
+  """
+  def update_node_group(%NodeGroup{} = group, attrs) do
+    group
+    |> NodeGroup.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a node group.
+  """
+  def delete_node_group(%NodeGroup{} = group) do
+    Repo.delete(group)
+  end
+
+  @doc """
+  Adds a node to a group.
+  """
+  def add_node_to_group(node_id, group_id) do
+    %NodeGroupMembership{}
+    |> NodeGroupMembership.changeset(%{node_id: node_id, node_group_id: group_id})
+    |> Repo.insert()
+  end
+
+  @doc """
+  Removes a node from a group.
+  """
+  def remove_node_from_group(node_id, group_id) do
+    from(m in NodeGroupMembership,
+      where: m.node_id == ^node_id,
+      where: m.node_group_id == ^group_id
+    )
+    |> Repo.delete_all()
+  end
+
+  @doc """
+  Sets the nodes in a group, replacing existing memberships.
+  """
+  def set_group_nodes(%NodeGroup{} = group, node_ids) when is_list(node_ids) do
+    Repo.transaction(fn ->
+      # Remove existing memberships
+      from(m in NodeGroupMembership, where: m.node_group_id == ^group.id)
+      |> Repo.delete_all()
+
+      # Add new memberships
+      Enum.each(node_ids, fn node_id ->
+        %NodeGroupMembership{}
+        |> NodeGroupMembership.changeset(%{node_id: node_id, node_group_id: group.id})
+        |> Repo.insert!()
+      end)
+
+      Repo.preload(group, :nodes, force: true)
+    end)
+  end
+
+  @doc """
+  Gets nodes by group IDs.
+  """
+  def get_nodes_by_groups(group_ids) when is_list(group_ids) do
+    from(n in Node,
+      join: m in NodeGroupMembership,
+      on: m.node_id == n.id,
+      where: m.node_group_id in ^group_ids,
+      distinct: true,
+      order_by: [asc: n.name]
+    )
+    |> Repo.all()
+  end
+
+  ## Version Pinning
+
+  @doc """
+  Pins a node to a specific bundle version.
+  """
+  def pin_node_to_bundle(node_id, bundle_id) do
+    node = get_node!(node_id)
+
+    node
+    |> Ecto.Changeset.change(%{pinned_bundle_id: bundle_id})
+    |> Repo.update()
+  end
+
+  @doc """
+  Unpins a node from its current bundle.
+  """
+  def unpin_node(node_id) do
+    node = get_node!(node_id)
+
+    node
+    |> Ecto.Changeset.change(%{pinned_bundle_id: nil})
+    |> Repo.update()
+  end
+
+  @doc """
+  Sets version constraints for a node.
+  """
+  def set_node_version_constraints(node_id, opts) do
+    node = get_node!(node_id)
+
+    changes = %{
+      min_bundle_version: Keyword.get(opts, :min_version),
+      max_bundle_version: Keyword.get(opts, :max_version)
+    }
+
+    node
+    |> Ecto.Changeset.change(changes)
+    |> Repo.update()
+  end
+
+  @doc """
+  Checks if a bundle version satisfies node constraints.
+  """
+  def bundle_satisfies_constraints?(bundle, node) do
+    version = bundle.version
+
+    min_ok =
+      case node.min_bundle_version do
+        nil -> true
+        min -> Version.compare(version, min) in [:gt, :eq]
+      end
+
+    max_ok =
+      case node.max_bundle_version do
+        nil -> true
+        max -> Version.compare(version, max) in [:lt, :eq]
+      end
+
+    min_ok and max_ok
+  rescue
+    # Version.compare can fail if versions aren't semver-compatible
+    _ -> true
+  end
 end

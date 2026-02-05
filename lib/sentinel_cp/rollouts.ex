@@ -8,7 +8,7 @@ defmodule SentinelCp.Rollouts do
 
   import Ecto.Query, warn: false
   alias SentinelCp.Repo
-  alias SentinelCp.Rollouts.{Rollout, RolloutStep, NodeBundleStatus, RolloutApproval, RolloutTemplate, TickWorker}
+  alias SentinelCp.Rollouts.{Rollout, RolloutStep, NodeBundleStatus, RolloutApproval, RolloutTemplate, TickWorker, HealthCheckEndpoint, HealthChecker}
   alias SentinelCp.{Bundles, Nodes, Notifications, Orgs, Projects}
 
   ## Rollout Template CRUD
@@ -108,6 +108,61 @@ defmodule SentinelCp.Rollouts do
   """
   def change_template(%RolloutTemplate{} = template, attrs \\ %{}) do
     RolloutTemplate.update_changeset(template, attrs)
+  end
+
+  ## Health Check Endpoint CRUD
+
+  @doc """
+  Lists all health check endpoints for a project.
+  """
+  def list_health_check_endpoints(project_id) do
+    from(e in HealthCheckEndpoint,
+      where: e.project_id == ^project_id,
+      order_by: [asc: e.name]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a health check endpoint by ID.
+  """
+  def get_health_check_endpoint(id), do: Repo.get(HealthCheckEndpoint, id)
+
+  @doc """
+  Gets a health check endpoint by ID, raises if not found.
+  """
+  def get_health_check_endpoint!(id), do: Repo.get!(HealthCheckEndpoint, id)
+
+  @doc """
+  Creates a health check endpoint.
+  """
+  def create_health_check_endpoint(attrs) do
+    %HealthCheckEndpoint{}
+    |> HealthCheckEndpoint.create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a health check endpoint.
+  """
+  def update_health_check_endpoint(%HealthCheckEndpoint{} = endpoint, attrs) do
+    endpoint
+    |> HealthCheckEndpoint.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a health check endpoint.
+  """
+  def delete_health_check_endpoint(%HealthCheckEndpoint{} = endpoint) do
+    Repo.delete(endpoint)
+  end
+
+  @doc """
+  Tests a health check endpoint.
+  """
+  def test_health_check_endpoint(%HealthCheckEndpoint{} = endpoint) do
+    HealthChecker.check(endpoint)
   end
 
   ## Rollout CRUD
@@ -363,10 +418,13 @@ defmodule SentinelCp.Rollouts do
   defp do_plan_rollout(rollout) do
     node_ids = resolve_target_nodes(rollout.project_id, rollout.target_selector)
 
+    # Filter out pinned nodes if bundle doesn't match
+    node_ids = filter_pinned_nodes(node_ids, rollout.bundle_id)
+
     if node_ids == [] do
       {:error, :no_target_nodes}
     else
-      batches = chunk_into_batches(node_ids, rollout.strategy, rollout.batch_size)
+      batches = chunk_into_batches(node_ids, rollout.strategy, rollout.batch_size, rollout.batch_percentage)
 
       result =
         Repo.transaction(fn ->
@@ -597,7 +655,26 @@ defmodule SentinelCp.Rollouts do
     node_ids
   end
 
+  def resolve_target_nodes(_project_id, %{"type" => "groups", "group_ids" => group_ids}) do
+    Nodes.get_nodes_by_groups(group_ids) |> Enum.map(& &1.id)
+  end
+
   def resolve_target_nodes(_project_id, _selector), do: []
+
+  defp filter_pinned_nodes(node_ids, bundle_id) do
+    # Get nodes that are pinned to a different bundle
+    pinned_to_other =
+      from(n in Nodes.Node,
+        where: n.id in ^node_ids,
+        where: not is_nil(n.pinned_bundle_id),
+        where: n.pinned_bundle_id != ^bundle_id,
+        select: n.id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
+    Enum.reject(node_ids, &MapSet.member?(pinned_to_other, &1))
+  end
 
   ## Private — Tick Logic
 
@@ -745,11 +822,36 @@ defmodule SentinelCp.Rollouts do
     gates = rollout.health_gates || %{}
 
     # All enabled gates must pass for available nodes
-    check_heartbeat_gate(gates, check_node_ids) and
-      check_error_rate_gate(gates, check_node_ids) and
-      check_latency_gate(gates, check_node_ids) and
-      check_cpu_gate(gates, check_node_ids) and
-      check_memory_gate(gates, check_node_ids)
+    standard_gates_pass =
+      check_heartbeat_gate(gates, check_node_ids) and
+        check_error_rate_gate(gates, check_node_ids) and
+        check_latency_gate(gates, check_node_ids) and
+        check_cpu_gate(gates, check_node_ids) and
+        check_memory_gate(gates, check_node_ids)
+
+    # Also check custom health check endpoints
+    custom_gates_pass =
+      if rollout.custom_health_checks && rollout.custom_health_checks != [] do
+        check_custom_health_endpoints(rollout.custom_health_checks)
+      else
+        true
+      end
+
+    standard_gates_pass and custom_gates_pass
+  end
+
+  defp check_custom_health_endpoints(endpoint_ids) do
+    endpoints =
+      from(e in HealthCheckEndpoint,
+        where: e.id in ^endpoint_ids,
+        where: e.enabled == true
+      )
+      |> Repo.all()
+
+    case HealthChecker.check_all(endpoints) do
+      {:ok, results} -> HealthChecker.all_passed?(results)
+      _ -> false
+    end
   end
 
   defp check_heartbeat_gate(gates, node_ids) do
@@ -856,9 +958,69 @@ defmodule SentinelCp.Rollouts do
         |> Repo.update()
 
       broadcast_and_notify(failed_rollout, old_state, "failed")
+
+      # Trigger auto-rollback if enabled
+      if rollout.auto_rollback do
+        trigger_auto_rollback(rollout, step)
+      end
+
       {:ok, :deadline_exceeded}
     else
       {:ok, :waiting}
+    end
+  end
+
+  defp trigger_auto_rollback(rollout, failed_step) do
+    # Get the previous bundle that was running on the affected nodes
+    node_ids = failed_step.node_ids
+
+    # Find the most common previous bundle among affected nodes
+    previous_bundles =
+      from(n in Nodes.Node,
+        where: n.id in ^node_ids,
+        where: not is_nil(n.active_bundle_id),
+        where: n.active_bundle_id != ^rollout.bundle_id,
+        group_by: n.active_bundle_id,
+        select: {n.active_bundle_id, count(n.id)},
+        order_by: [desc: count(n.id)]
+      )
+      |> Repo.all()
+
+    case previous_bundles do
+      [{previous_bundle_id, _count} | _] ->
+        # Create a rollback rollout
+        attrs = %{
+          project_id: rollout.project_id,
+          bundle_id: previous_bundle_id,
+          target_selector: %{"type" => "node_ids", "node_ids" => node_ids},
+          strategy: "all_at_once",
+          created_by_id: rollout.created_by_id
+        }
+
+        case create_rollout(attrs) do
+          {:ok, rollback_rollout} ->
+            require Logger
+
+            Logger.info("Auto-rollback initiated",
+              failed_rollout_id: rollout.id,
+              rollback_rollout_id: rollback_rollout.id,
+              bundle_id: previous_bundle_id
+            )
+
+            plan_rollout(rollback_rollout)
+
+          {:error, reason} ->
+            require Logger
+
+            Logger.warning("Auto-rollback failed to create rollout",
+              failed_rollout_id: rollout.id,
+              reason: inspect(reason)
+            )
+        end
+
+      [] ->
+        require Logger
+        Logger.info("Auto-rollback skipped: no previous bundle found", rollout_id: rollout.id)
     end
   end
 
@@ -910,11 +1072,18 @@ defmodule SentinelCp.Rollouts do
     end
   end
 
-  defp chunk_into_batches(node_ids, "all_at_once", _batch_size) do
+  defp chunk_into_batches(node_ids, "all_at_once", _batch_size, _batch_pct) do
     [node_ids]
   end
 
-  defp chunk_into_batches(node_ids, _strategy, batch_size) do
+  defp chunk_into_batches(node_ids, _strategy, _batch_size, batch_percentage)
+       when is_integer(batch_percentage) and batch_percentage > 0 do
+    total = length(node_ids)
+    batch_size = max(1, div(total * batch_percentage, 100))
+    Enum.chunk_every(node_ids, batch_size)
+  end
+
+  defp chunk_into_batches(node_ids, _strategy, batch_size, _batch_pct) do
     Enum.chunk_every(node_ids, batch_size)
   end
 

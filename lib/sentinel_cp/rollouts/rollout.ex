@@ -25,6 +25,12 @@ defmodule SentinelCp.Rollouts.Rollout do
     field :completed_at, :utc_datetime
     field :error, :map
 
+    # Canary deployment fields
+    field :batch_percentage, :integer
+    field :auto_rollback, :boolean, default: false
+    field :rollback_threshold, :integer, default: 50
+    field :custom_health_checks, {:array, :binary_id}, default: []
+
     # Approval workflow fields
     field :approval_state, :string, default: "not_required"
     field :rejection_comment, :string
@@ -51,23 +57,43 @@ defmodule SentinelCp.Rollouts.Rollout do
       :target_selector,
       :strategy,
       :batch_size,
+      :batch_percentage,
       :max_unavailable,
       :progress_deadline_seconds,
       :health_gates,
       :created_by_id,
-      :scheduled_at
+      :scheduled_at,
+      :auto_rollback,
+      :rollback_threshold,
+      :custom_health_checks
     ])
     |> validate_required([:project_id, :bundle_id, :target_selector])
     |> validate_inclusion(:strategy, @strategies)
     |> validate_number(:batch_size, greater_than: 0)
+    |> validate_number(:batch_percentage, greater_than: 0, less_than_or_equal_to: 100)
     |> validate_number(:max_unavailable, greater_than_or_equal_to: 0)
     |> validate_number(:progress_deadline_seconds, greater_than: 0)
+    |> validate_number(:rollback_threshold, greater_than: 0, less_than_or_equal_to: 100)
+    |> validate_batch_config()
     |> validate_target_selector()
     |> validate_health_gates()
     |> validate_scheduled_at()
     |> put_change(:state, "pending")
     |> foreign_key_constraint(:project_id)
     |> foreign_key_constraint(:bundle_id)
+  end
+
+  defp validate_batch_config(changeset) do
+    batch_size = get_field(changeset, :batch_size)
+    batch_percentage = get_field(changeset, :batch_percentage)
+
+    cond do
+      batch_percentage && batch_size && batch_size != 1 ->
+        add_error(changeset, :batch_size, "cannot set both batch_size and batch_percentage")
+
+      true ->
+        changeset
+    end
   end
 
   def state_changeset(rollout, state, opts \\ []) do
@@ -137,10 +163,13 @@ defmodule SentinelCp.Rollouts.Rollout do
         %{"type" => "node_ids", "node_ids" => ids} when is_list(ids) and length(ids) > 0 ->
           []
 
+        %{"type" => "groups", "group_ids" => ids} when is_list(ids) and length(ids) > 0 ->
+          []
+
         _ ->
           [
             target_selector:
-              "must be {type: all}, {type: labels, labels: {...}}, or {type: node_ids, node_ids: [...]}"
+              "must be {type: all}, {type: labels, labels: {...}}, {type: node_ids, node_ids: [...]}, or {type: groups, group_ids: [...]}"
           ]
       end
     end)

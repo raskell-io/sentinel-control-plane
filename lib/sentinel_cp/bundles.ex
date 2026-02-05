@@ -173,4 +173,75 @@ defmodule SentinelCp.Bundles do
     |> SentinelCp.Bundles.CompileWorker.new()
     |> Oban.insert()
   end
+
+  ## Config Validation Rules
+
+  alias SentinelCp.Bundles.{ConfigValidationRule, ConfigValidator}
+
+  @doc """
+  Lists all config validation rules for a project.
+  """
+  def list_validation_rules(project_id) do
+    from(r in ConfigValidationRule,
+      where: r.project_id == ^project_id,
+      order_by: [asc: r.name]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a validation rule by ID.
+  """
+  def get_validation_rule(id), do: Repo.get(ConfigValidationRule, id)
+
+  @doc """
+  Gets a validation rule by ID, raises if not found.
+  """
+  def get_validation_rule!(id), do: Repo.get!(ConfigValidationRule, id)
+
+  @doc """
+  Creates a config validation rule.
+  """
+  def create_validation_rule(attrs) do
+    %ConfigValidationRule{}
+    |> ConfigValidationRule.create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a config validation rule.
+  """
+  def update_validation_rule(%ConfigValidationRule{} = rule, attrs) do
+    rule
+    |> ConfigValidationRule.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a config validation rule.
+  """
+  def delete_validation_rule(%ConfigValidationRule{} = rule) do
+    Repo.delete(rule)
+  end
+
+  @doc """
+  Validates a bundle's config against project validation rules.
+
+  Returns `{:ok, warnings}` if validation passes.
+  Returns `{:error, errors, warnings}` if validation fails.
+  """
+  def validate_bundle_config(%Bundle{} = bundle) do
+    rules = list_validation_rules(bundle.project_id)
+    config_source = bundle.config_source || ""
+
+    ConfigValidator.validate(config_source, rules)
+  end
+
+  @doc """
+  Validates config source against project validation rules.
+  """
+  def validate_config(project_id, config_source) when is_binary(config_source) do
+    rules = list_validation_rules(project_id)
+    ConfigValidator.validate(config_source, rules)
+  end
 end
