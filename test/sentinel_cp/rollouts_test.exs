@@ -3,10 +3,13 @@ defmodule SentinelCp.RolloutsTest do
 
   alias SentinelCp.Rollouts
   alias SentinelCp.Rollouts.Rollout
+  alias SentinelCp.Orgs
 
   import SentinelCp.ProjectsFixtures
   import SentinelCp.NodesFixtures
   import SentinelCp.RolloutsFixtures
+  import SentinelCp.AccountsFixtures
+  import SentinelCp.OrgsFixtures
 
   describe "create_rollout/1" do
     test "creates a rollout with valid attributes" do
@@ -792,6 +795,246 @@ defmodule SentinelCp.RolloutsTest do
 
       assert length(Rollouts.list_rollouts(project.id, state: "pending")) == 1
       assert Rollouts.list_rollouts(project.id, state: "running") == []
+    end
+  end
+
+  describe "approval workflow" do
+    setup do
+      # Create org with owner (admin)
+      {org, admin} = org_with_owner_fixture()
+      # Create another operator user and add to org
+      operator = user_fixture()
+      {:ok, _membership} = Orgs.add_member(org, operator, "operator")
+      # Create a third operator
+      operator2 = user_fixture()
+      {:ok, _membership} = Orgs.add_member(org, operator2, "operator")
+      # Create project in this org with approval required
+      project =
+        project_fixture(%{
+          org: org,
+          settings: %{"approval_required" => true, "approvals_needed" => 2}
+        })
+
+      bundle = compiled_bundle_fixture(%{project: project})
+
+      %{
+        org: org,
+        admin: admin,
+        operator: operator,
+        operator2: operator2,
+        project: project,
+        bundle: bundle
+      }
+    end
+
+    test "submit_for_approval transitions to pending_approval when required", ctx do
+      rollout =
+        rollout_fixture(%{
+          project: ctx.project,
+          bundle: ctx.bundle,
+          created_by_id: ctx.admin.id
+        })
+
+      assert rollout.approval_state == "not_required"
+
+      {:ok, updated} = Rollouts.submit_for_approval(rollout)
+      assert updated.approval_state == "pending_approval"
+    end
+
+    test "submit_for_approval transitions to approved when not required" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+      rollout = rollout_fixture(%{project: project, bundle: bundle})
+
+      {:ok, updated} = Rollouts.submit_for_approval(rollout)
+      assert updated.approval_state == "approved"
+    end
+
+    test "approve_rollout adds approval and transitions when threshold met", ctx do
+      rollout =
+        rollout_fixture(%{
+          project: ctx.project,
+          bundle: ctx.bundle,
+          created_by_id: ctx.admin.id
+        })
+
+      {:ok, rollout} = Rollouts.submit_for_approval(rollout)
+      assert rollout.approval_state == "pending_approval"
+
+      # First approval - should stay pending_approval (need 2)
+      {:ok, rollout} = Rollouts.approve_rollout(rollout, ctx.operator)
+      assert rollout.approval_state == "pending_approval"
+      assert Rollouts.count_approvals(rollout.id) == 1
+
+      # Second approval - should transition to approved
+      {:ok, rollout} = Rollouts.approve_rollout(rollout, ctx.operator2)
+      assert rollout.approval_state == "approved"
+      assert Rollouts.count_approvals(rollout.id) == 2
+    end
+
+    test "approve_rollout blocks self-approval", ctx do
+      rollout =
+        rollout_fixture(%{
+          project: ctx.project,
+          bundle: ctx.bundle,
+          created_by_id: ctx.admin.id
+        })
+
+      {:ok, rollout} = Rollouts.submit_for_approval(rollout)
+
+      assert {:error, :self_approval} = Rollouts.approve_rollout(rollout, ctx.admin)
+    end
+
+    test "approve_rollout blocks duplicate approval", ctx do
+      rollout =
+        rollout_fixture(%{
+          project: ctx.project,
+          bundle: ctx.bundle,
+          created_by_id: ctx.admin.id
+        })
+
+      {:ok, rollout} = Rollouts.submit_for_approval(rollout)
+      {:ok, rollout} = Rollouts.approve_rollout(rollout, ctx.operator)
+
+      assert {:error, :already_approved} = Rollouts.approve_rollout(rollout, ctx.operator)
+    end
+
+    test "approve_rollout blocks non-operator users", ctx do
+      reader = user_fixture()
+      {:ok, _membership} = Orgs.add_member(ctx.org, reader, "reader")
+
+      rollout =
+        rollout_fixture(%{
+          project: ctx.project,
+          bundle: ctx.bundle,
+          created_by_id: ctx.admin.id
+        })
+
+      {:ok, rollout} = Rollouts.submit_for_approval(rollout)
+
+      assert {:error, :not_authorized} = Rollouts.approve_rollout(rollout, reader)
+    end
+
+    test "reject_rollout transitions to rejected with comment", ctx do
+      rollout =
+        rollout_fixture(%{
+          project: ctx.project,
+          bundle: ctx.bundle,
+          created_by_id: ctx.admin.id
+        })
+
+      {:ok, rollout} = Rollouts.submit_for_approval(rollout)
+
+      {:ok, rejected} =
+        Rollouts.reject_rollout(rollout, ctx.operator, "Config has security issues")
+
+      assert rejected.approval_state == "rejected"
+      assert rejected.rejection_comment == "Config has security issues"
+      assert rejected.rejected_by_id == ctx.operator.id
+      assert rejected.rejected_at != nil
+    end
+
+    test "reject_rollout requires comment", ctx do
+      rollout =
+        rollout_fixture(%{
+          project: ctx.project,
+          bundle: ctx.bundle,
+          created_by_id: ctx.admin.id
+        })
+
+      {:ok, rollout} = Rollouts.submit_for_approval(rollout)
+
+      assert {:error, :comment_required} = Rollouts.reject_rollout(rollout, ctx.operator, "")
+      assert {:error, :comment_required} = Rollouts.reject_rollout(rollout, ctx.operator, nil)
+    end
+
+    test "plan_rollout blocks pending_approval rollouts", ctx do
+      _node = node_fixture(%{project: ctx.project})
+
+      rollout =
+        rollout_fixture(%{
+          project: ctx.project,
+          bundle: ctx.bundle,
+          created_by_id: ctx.admin.id
+        })
+
+      {:ok, rollout} = Rollouts.submit_for_approval(rollout)
+      assert rollout.approval_state == "pending_approval"
+
+      assert {:error, :approval_required} = Rollouts.plan_rollout(rollout)
+    end
+
+    test "plan_rollout works after approval", ctx do
+      _node = node_fixture(%{project: ctx.project})
+
+      rollout =
+        rollout_fixture(%{
+          project: ctx.project,
+          bundle: ctx.bundle,
+          created_by_id: ctx.admin.id
+        })
+
+      {:ok, rollout} = Rollouts.submit_for_approval(rollout)
+      {:ok, rollout} = Rollouts.approve_rollout(rollout, ctx.operator)
+      {:ok, rollout} = Rollouts.approve_rollout(rollout, ctx.operator2)
+
+      assert rollout.approval_state == "approved"
+      assert {:ok, _} = Rollouts.plan_rollout(rollout)
+    end
+
+    test "cancel_rollout works on rejected rollouts", ctx do
+      rollout =
+        rollout_fixture(%{
+          project: ctx.project,
+          bundle: ctx.bundle,
+          created_by_id: ctx.admin.id
+        })
+
+      {:ok, rollout} = Rollouts.submit_for_approval(rollout)
+      {:ok, rollout} = Rollouts.reject_rollout(rollout, ctx.operator, "Not ready")
+
+      assert rollout.state == "pending"
+      assert rollout.approval_state == "rejected"
+
+      {:ok, cancelled} = Rollouts.cancel_rollout(rollout)
+      assert cancelled.state == "cancelled"
+    end
+
+    test "list_approvals returns approvals with users", ctx do
+      rollout =
+        rollout_fixture(%{
+          project: ctx.project,
+          bundle: ctx.bundle,
+          created_by_id: ctx.admin.id
+        })
+
+      {:ok, rollout} = Rollouts.submit_for_approval(rollout)
+      {:ok, _rollout} = Rollouts.approve_rollout(rollout, ctx.operator)
+
+      approvals = Rollouts.list_approvals(rollout.id)
+      assert length(approvals) == 1
+      assert hd(approvals).user.email == ctx.operator.email
+    end
+
+    test "can_start_rollout? returns correct values" do
+      project = project_fixture()
+      bundle = compiled_bundle_fixture(%{project: project})
+      rollout = rollout_fixture(%{project: project, bundle: bundle})
+
+      # Default is not_required
+      assert Rollouts.can_start_rollout?(rollout)
+
+      # After submitting for approval on a project that requires it
+      project_with_approval =
+        project_fixture(%{settings: %{"approval_required" => true}})
+
+      bundle2 = compiled_bundle_fixture(%{project: project_with_approval})
+
+      rollout2 =
+        rollout_fixture(%{project: project_with_approval, bundle: bundle2})
+
+      {:ok, rollout2} = Rollouts.submit_for_approval(rollout2)
+      refute Rollouts.can_start_rollout?(rollout2)
     end
   end
 end

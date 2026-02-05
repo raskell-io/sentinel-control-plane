@@ -15,6 +15,7 @@ defmodule SentinelCpWeb.BundlesLive.Show do
       end
 
       assigned_nodes = get_assigned_nodes(bundle, project.id)
+      previous_bundle = get_previous_bundle(bundle, project.id)
 
       {:ok,
        assign(socket,
@@ -22,7 +23,8 @@ defmodule SentinelCpWeb.BundlesLive.Show do
          org: org,
          project: project,
          bundle: bundle,
-         assigned_nodes: assigned_nodes
+         assigned_nodes: assigned_nodes,
+         previous_bundle: previous_bundle
        )}
     else
       _ ->
@@ -95,7 +97,11 @@ defmodule SentinelCpWeb.BundlesLive.Show do
   def render(assigns) do
     ~H"""
     <div class="space-y-4">
-      <.detail_header name={@bundle.version} resource_type="bundle" back_path={project_bundles_path(@org, @project)}>
+      <.detail_header
+        name={@bundle.version}
+        resource_type="bundle"
+        back_path={project_bundles_path(@org, @project)}
+      >
         <:badge>
           <span class={[
             "badge badge-sm",
@@ -108,6 +114,13 @@ defmodule SentinelCpWeb.BundlesLive.Show do
           </span>
         </:badge>
         <:action>
+          <.link
+            :if={@previous_bundle}
+            navigate={diff_path(@org, @project, @previous_bundle.id, @bundle.id)}
+            class="btn btn-outline btn-sm"
+          >
+            Compare with previous
+          </.link>
           <a
             :if={@bundle.status == "compiled"}
             href={"/api/v1/projects/#{@project.slug}/bundles/#{@bundle.id}/sbom"}
@@ -141,12 +154,18 @@ defmodule SentinelCpWeb.BundlesLive.Show do
             <:item label="ID"><span class="font-mono text-sm">{@bundle.id}</span></:item>
             <:item label="Version"><span class="font-mono">{@bundle.version}</span></:item>
             <:item label="Status">{@bundle.status}</:item>
-            <:item label="Checksum"><span class="font-mono text-sm">{@bundle.checksum || "—"}</span></:item>
+            <:item label="Checksum">
+              <span class="font-mono text-sm">{@bundle.checksum || "—"}</span>
+            </:item>
             <:item label="Size">
-              <span class="font-mono">{if @bundle.size_bytes, do: format_bytes(@bundle.size_bytes), else: "—"}</span>
+              <span class="font-mono">
+                {if @bundle.size_bytes, do: format_bytes(@bundle.size_bytes), else: "—"}
+              </span>
             </:item>
             <:item label="Risk Level">{@bundle.risk_level}</:item>
-            <:item label="Created">{Calendar.strftime(@bundle.inserted_at, "%Y-%m-%d %H:%M:%S UTC")}</:item>
+            <:item label="Created">
+              {Calendar.strftime(@bundle.inserted_at, "%Y-%m-%d %H:%M:%S UTC")}
+            </:item>
           </.definition_list>
         </.k8s_section>
 
@@ -227,6 +246,24 @@ defmodule SentinelCpWeb.BundlesLive.Show do
       node.staged_bundle_id == bundle.id || node.active_bundle_id == bundle.id
     end)
   end
+
+  defp get_previous_bundle(bundle, project_id) do
+    import Ecto.Query
+
+    SentinelCp.Bundles.Bundle
+    |> where([b], b.project_id == ^project_id)
+    |> where([b], b.inserted_at < ^bundle.inserted_at)
+    |> where([b], b.status == "compiled")
+    |> order_by([b], desc: b.inserted_at)
+    |> limit(1)
+    |> SentinelCp.Repo.one()
+  end
+
+  defp diff_path(%{slug: org_slug}, project, a_id, b_id),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/bundles/diff?a=#{a_id}&b=#{b_id}"
+
+  defp diff_path(nil, project, a_id, b_id),
+    do: ~p"/projects/#{project.slug}/bundles/diff?a=#{a_id}&b=#{b_id}"
 
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 1)} KB"

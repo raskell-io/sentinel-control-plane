@@ -29,7 +29,15 @@ defmodule SentinelCp.Projects.Project do
   """
   def create_changeset(project, attrs) do
     project
-    |> cast(attrs, [:name, :description, :settings, :github_repo, :github_branch, :config_path, :org_id])
+    |> cast(attrs, [
+      :name,
+      :description,
+      :settings,
+      :github_repo,
+      :github_branch,
+      :config_path,
+      :org_id
+    ])
     |> validate_required([:name, :org_id])
     |> validate_length(:name, min: 1, max: 100)
     |> generate_slug()
@@ -72,5 +80,21 @@ defmodule SentinelCp.Projects.Project do
       message: "must contain only lowercase letters, numbers, and hyphens"
     )
     |> validate_length(:slug, min: 1, max: 50)
+  end
+
+  @doc """
+  Returns whether rollout approvals are required for this project.
+  Reads from the settings JSON map.
+  """
+  def approval_required?(%__MODULE__{settings: settings}) do
+    Map.get(settings || %{}, "approval_required", false)
+  end
+
+  @doc """
+  Returns the number of approvals needed for rollouts in this project.
+  Defaults to 1 if approval is required but count not specified.
+  """
+  def approvals_needed(%__MODULE__{settings: settings}) do
+    Map.get(settings || %{}, "approvals_needed", 1)
   end
 end

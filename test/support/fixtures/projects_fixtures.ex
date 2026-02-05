@@ -8,11 +8,20 @@ defmodule SentinelCp.ProjectsFixtures do
   def valid_project_attributes(attrs \\ %{}) do
     org = attrs[:org] || SentinelCp.OrgsFixtures.org_fixture()
 
-    Enum.into(attrs, %{
+    base = %{
       name: unique_project_name(),
       description: "A test project",
       org_id: org.id
-    })
+    }
+
+    base =
+      if Map.has_key?(attrs, :settings) do
+        Map.put(base, :settings, attrs[:settings])
+      else
+        base
+      end
+
+    Enum.into(Map.drop(attrs, [:org, :settings]), base)
   end
 
   def project_fixture(attrs \\ %{}) do

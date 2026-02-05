@@ -108,6 +108,9 @@ defmodule SentinelCpWeb.BundlesLive.Index do
           <h1 class="text-xl font-bold">Bundles</h1>
         </:filters>
         <:actions>
+          <.link navigate={bundle_diff_path(@org, @project)} class="btn btn-outline btn-sm">
+            Compare Bundles
+          </.link>
           <.link navigate={bundle_new_path(@org, @project)} class="btn btn-primary btn-sm">
             New Bundle
           </.link>
@@ -139,7 +142,9 @@ defmodule SentinelCpWeb.BundlesLive.Index do
             </div>
             <div class="flex gap-2">
               <button type="submit" class="btn btn-primary btn-sm">Create & Compile</button>
-              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_upload">Cancel</button>
+              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_upload">
+                Cancel
+              </button>
             </div>
           </form>
         </.k8s_section>
@@ -229,6 +234,12 @@ defmodule SentinelCpWeb.BundlesLive.Index do
 
   defp bundle_new_path(nil, project),
     do: ~p"/projects/#{project.slug}/bundles/new"
+
+  defp bundle_diff_path(%{slug: org_slug}, project),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/bundles/diff"
+
+  defp bundle_diff_path(nil, project),
+    do: ~p"/projects/#{project.slug}/bundles/diff"
 
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 1)} KB"

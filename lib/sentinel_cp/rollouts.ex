@@ -8,8 +8,8 @@ defmodule SentinelCp.Rollouts do
 
   import Ecto.Query, warn: false
   alias SentinelCp.Repo
-  alias SentinelCp.Rollouts.{Rollout, RolloutStep, NodeBundleStatus, TickWorker}
-  alias SentinelCp.{Bundles, Nodes}
+  alias SentinelCp.Rollouts.{Rollout, RolloutStep, NodeBundleStatus, RolloutApproval, TickWorker}
+  alias SentinelCp.{Bundles, Nodes, Orgs, Projects}
 
   ## Rollout CRUD
 
@@ -72,6 +72,163 @@ defmodule SentinelCp.Rollouts do
     enqueue_tick(rollout_id)
   end
 
+  ## Approval Workflow
+
+  @doc """
+  Checks if a rollout requires approval based on its project settings.
+  """
+  def requires_approval?(%Rollout{} = rollout) do
+    project = Projects.get_project!(rollout.project_id)
+    Projects.Project.approval_required?(project)
+  end
+
+  @doc """
+  Submits a rollout for approval. If the project requires approval,
+  transitions to pending_approval. Otherwise, transitions to approved.
+  """
+  def submit_for_approval(%Rollout{state: "pending", approval_state: "not_required"} = rollout) do
+    project = Projects.get_project!(rollout.project_id)
+
+    if Projects.Project.approval_required?(project) do
+      rollout
+      |> Rollout.approval_changeset("pending_approval")
+      |> Repo.update()
+    else
+      rollout
+      |> Rollout.approval_changeset("approved")
+      |> Repo.update()
+    end
+  end
+
+  def submit_for_approval(%Rollout{}), do: {:error, :invalid_state}
+
+  @doc """
+  Adds a user's approval to a rollout. Auto-transitions to approved when
+  the required number of approvals is reached.
+
+  Returns error if:
+  - User is the rollout creator (self-approval not allowed)
+  - User doesn't have operator/admin role in the org
+  - User has already approved this rollout
+  - Rollout is not in pending_approval state
+  """
+  def approve_rollout(%Rollout{approval_state: "pending_approval"} = rollout, user) do
+    project = Projects.get_project!(rollout.project_id)
+
+    with :ok <- validate_not_creator(rollout, user),
+         :ok <- validate_approver_role(project, user),
+         :ok <- validate_not_already_approved(rollout, user) do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      {:ok, _approval} =
+        %RolloutApproval{}
+        |> RolloutApproval.changeset(%{
+          rollout_id: rollout.id,
+          user_id: user.id,
+          approved_at: now
+        })
+        |> Repo.insert()
+
+      # Check if we have enough approvals
+      approval_count = count_approvals(rollout.id)
+      needed = Projects.Project.approvals_needed(project)
+
+      if approval_count >= needed do
+        rollout
+        |> Rollout.approval_changeset("approved")
+        |> Repo.update()
+      else
+        {:ok, Repo.get!(Rollout, rollout.id)}
+      end
+    end
+  end
+
+  def approve_rollout(%Rollout{}, _user), do: {:error, :invalid_state}
+
+  @doc """
+  Rejects a rollout with a required comment.
+
+  Returns error if:
+  - Comment is empty
+  - User doesn't have operator/admin role in the org
+  - Rollout is not in pending_approval state
+  """
+  def reject_rollout(%Rollout{approval_state: "pending_approval"} = rollout, user, comment) do
+    if is_nil(comment) or String.trim(comment) == "" do
+      {:error, :comment_required}
+    else
+      project = Projects.get_project!(rollout.project_id)
+
+      with :ok <- validate_approver_role(project, user) do
+        rollout
+        |> Rollout.approval_changeset("rejected",
+          comment: comment,
+          rejected_by_id: user.id
+        )
+        |> Repo.update()
+      end
+    end
+  end
+
+  def reject_rollout(%Rollout{}, _user, _comment), do: {:error, :invalid_state}
+
+  @doc """
+  Checks if a rollout can be started (planned).
+  Returns true if approval_state is approved or not_required.
+  """
+  def can_start_rollout?(%Rollout{approval_state: approval_state}) do
+    approval_state in ~w(approved not_required)
+  end
+
+  @doc """
+  Lists all approvals for a rollout with preloaded users.
+  """
+  def list_approvals(rollout_id) do
+    from(a in RolloutApproval,
+      where: a.rollout_id == ^rollout_id,
+      preload: [:user],
+      order_by: [asc: a.approved_at]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Counts the number of approvals for a rollout.
+  """
+  def count_approvals(rollout_id) do
+    from(a in RolloutApproval, where: a.rollout_id == ^rollout_id)
+    |> Repo.aggregate(:count)
+  end
+
+  defp validate_not_creator(%Rollout{created_by_id: created_by_id}, %{id: user_id})
+       when created_by_id == user_id do
+    {:error, :self_approval}
+  end
+
+  defp validate_not_creator(_rollout, _user), do: :ok
+
+  defp validate_approver_role(project, user) do
+    if Orgs.user_has_role?(project.org_id, user.id, "operator") do
+      :ok
+    else
+      {:error, :not_authorized}
+    end
+  end
+
+  defp validate_not_already_approved(rollout, user) do
+    exists =
+      from(a in RolloutApproval,
+        where: a.rollout_id == ^rollout.id and a.user_id == ^user.id
+      )
+      |> Repo.exists?()
+
+    if exists do
+      {:error, :already_approved}
+    else
+      :ok
+    end
+  end
+
   ## Rollout Lifecycle
 
   @doc """
@@ -79,8 +236,20 @@ defmodule SentinelCp.Rollouts do
   NodeBundleStatus records, and transitions to running.
 
   The caller should call `schedule_tick/1` after to begin processing.
+
+  Returns error if rollout requires approval but hasn't been approved.
   """
   def plan_rollout(%Rollout{state: "pending"} = rollout) do
+    unless can_start_rollout?(rollout) do
+      {:error, :approval_required}
+    else
+      do_plan_rollout(rollout)
+    end
+  end
+
+  def plan_rollout(%Rollout{}), do: {:error, :invalid_state}
+
+  defp do_plan_rollout(rollout) do
     node_ids = resolve_target_nodes(rollout.project_id, rollout.target_selector)
 
     if node_ids == [] do
@@ -130,8 +299,6 @@ defmodule SentinelCp.Rollouts do
       end)
     end
   end
-
-  def plan_rollout(%Rollout{}), do: {:error, :invalid_state}
 
   @doc """
   Core state machine driver. Called by the TickWorker on each tick.
@@ -193,8 +360,14 @@ defmodule SentinelCp.Rollouts do
   def resume_rollout(%Rollout{}), do: {:error, :invalid_state}
 
   @doc """
-  Cancels a running or paused rollout.
+  Cancels a running, paused, or pending (rejected) rollout.
   """
+  def cancel_rollout(%Rollout{state: "pending", approval_state: "rejected"} = rollout) do
+    rollout
+    |> Rollout.state_changeset("cancelled")
+    |> Repo.update()
+  end
+
   def cancel_rollout(%Rollout{state: state} = rollout) when state in ~w(running paused) do
     rollout
     |> Rollout.state_changeset("cancelled")

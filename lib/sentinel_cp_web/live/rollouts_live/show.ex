@@ -2,6 +2,7 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
   use SentinelCpWeb, :live_view
 
   alias SentinelCp.{Rollouts, Orgs, Projects, Nodes}
+  alias SentinelCp.Projects.Project
 
   @refresh_interval 5_000
 
@@ -19,6 +20,9 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
 
       progress = Rollouts.get_rollout_progress(rollout.id)
       node_names = load_node_names(rollout.node_bundle_statuses)
+      approvals = Rollouts.list_approvals(rollout.id)
+      current_user = socket.assigns.current_user
+      can_approve = can_user_approve?(rollout, current_user, project)
 
       {:ok,
        assign(socket,
@@ -27,7 +31,11 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
          project: project,
          rollout: rollout,
          progress: progress,
-         node_names: node_names
+         node_names: node_names,
+         approvals: approvals,
+         can_approve: can_approve,
+         show_reject_form: false,
+         reject_comment: ""
        )}
     else
       _ ->
@@ -95,6 +103,113 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
   end
 
   @impl true
+  def handle_event("approve", _, socket) do
+    case Rollouts.approve_rollout(socket.assigns.rollout, socket.assigns.current_user) do
+      {:ok, updated} ->
+        rollout = Rollouts.get_rollout_with_details(updated.id)
+        approvals = Rollouts.list_approvals(rollout.id)
+
+        socket =
+          socket
+          |> assign(rollout: rollout, approvals: approvals, can_approve: false)
+          |> put_flash(:info, "Approval recorded.")
+
+        # Auto-start if now approved
+        if rollout.approval_state == "approved" and rollout.state == "pending" do
+          case Rollouts.plan_rollout(rollout) do
+            {:ok, _} ->
+              rollout = Rollouts.get_rollout_with_details(rollout.id)
+
+              {:noreply,
+               assign(socket, rollout: rollout)
+               |> put_flash(:info, "Rollout approved and started.")}
+
+            {:error, :no_target_nodes} ->
+              {:noreply, put_flash(socket, :error, "Rollout approved but no target nodes found.")}
+
+            {:error, reason} ->
+              {:noreply,
+               put_flash(
+                 socket,
+                 :error,
+                 "Rollout approved but failed to start: #{inspect(reason)}"
+               )}
+          end
+        else
+          {:noreply, socket}
+        end
+
+      {:error, :self_approval} ->
+        {:noreply, put_flash(socket, :error, "Cannot approve your own rollout.")}
+
+      {:error, :not_authorized} ->
+        {:noreply, put_flash(socket, :error, "You don't have permission to approve rollouts.")}
+
+      {:error, :already_approved} ->
+        {:noreply, put_flash(socket, :error, "You have already approved this rollout.")}
+
+      {:error, :invalid_state} ->
+        {:noreply, put_flash(socket, :error, "Rollout is not awaiting approval.")}
+    end
+  end
+
+  @impl true
+  def handle_event("show_reject_form", _, socket) do
+    {:noreply, assign(socket, show_reject_form: true)}
+  end
+
+  @impl true
+  def handle_event("hide_reject_form", _, socket) do
+    {:noreply, assign(socket, show_reject_form: false, reject_comment: "")}
+  end
+
+  @impl true
+  def handle_event("reject", %{"comment" => comment}, socket) do
+    case Rollouts.reject_rollout(socket.assigns.rollout, socket.assigns.current_user, comment) do
+      {:ok, updated} ->
+        {:noreply,
+         socket
+         |> assign(
+           rollout: Rollouts.get_rollout_with_details(updated.id),
+           show_reject_form: false,
+           reject_comment: ""
+         )
+         |> put_flash(:info, "Rollout rejected.")}
+
+      {:error, :comment_required} ->
+        {:noreply, put_flash(socket, :error, "A comment is required when rejecting.")}
+
+      {:error, :not_authorized} ->
+        {:noreply, put_flash(socket, :error, "You don't have permission to reject rollouts.")}
+
+      {:error, :invalid_state} ->
+        {:noreply, put_flash(socket, :error, "Rollout is not awaiting approval.")}
+    end
+  end
+
+  @impl true
+  def handle_event("start", _, socket) do
+    rollout = socket.assigns.rollout
+
+    case Rollouts.plan_rollout(rollout) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(rollout: Rollouts.get_rollout_with_details(rollout.id))
+         |> put_flash(:info, "Rollout started.")}
+
+      {:error, :no_target_nodes} ->
+        {:noreply, put_flash(socket, :error, "No target nodes matched the selector.")}
+
+      {:error, :approval_required} ->
+        {:noreply, put_flash(socket, :error, "Rollout requires approval before starting.")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to start rollout: #{inspect(reason)}")}
+    end
+  end
+
+  @impl true
   def handle_info({:rollout_updated, _rollout_id}, socket) do
     reload(socket)
   end
@@ -112,8 +227,17 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
     rollout = Rollouts.get_rollout_with_details(socket.assigns.rollout.id)
     progress = Rollouts.get_rollout_progress(rollout.id)
     node_names = load_node_names(rollout.node_bundle_statuses)
+    approvals = Rollouts.list_approvals(rollout.id)
+    can_approve = can_user_approve?(rollout, socket.assigns.current_user, socket.assigns.project)
 
-    {:noreply, assign(socket, rollout: rollout, progress: progress, node_names: node_names)}
+    {:noreply,
+     assign(socket,
+       rollout: rollout,
+       progress: progress,
+       node_names: node_names,
+       approvals: approvals,
+       can_approve: can_approve
+     )}
   end
 
   defp load_node_names(node_bundle_statuses) do
@@ -130,6 +254,31 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
         end
       end)
       |> Map.new()
+    end
+  end
+
+  defp can_user_approve?(rollout, user, project) do
+    cond do
+      # Not in pending_approval state
+      rollout.approval_state != "pending_approval" ->
+        false
+
+      # No user (shouldn't happen but handle it)
+      is_nil(user) ->
+        false
+
+      # Creator cannot self-approve
+      rollout.created_by_id == user.id ->
+        false
+
+      # Check if user has already approved
+      Rollouts.count_approvals(rollout.id) > 0 and
+          Enum.any?(Rollouts.list_approvals(rollout.id), &(&1.user_id == user.id)) ->
+        false
+
+      # Check org role
+      true ->
+        Orgs.user_has_role?(project.org_id, user.id, "operator")
     end
   end
 
@@ -154,8 +303,27 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
           ]}>
             {@rollout.state}
           </span>
+          <span
+            :if={@rollout.approval_state == "pending_approval"}
+            class="badge badge-sm badge-warning"
+          >
+            awaiting approval
+          </span>
+          <span :if={@rollout.approval_state == "rejected"} class="badge badge-sm badge-error">
+            rejected
+          </span>
+          <span :if={@rollout.approval_state == "approved"} class="badge badge-sm badge-success">
+            approved
+          </span>
         </:badge>
         <:action>
+          <button
+            :if={@rollout.state == "pending" and @rollout.approval_state == "approved"}
+            class="btn btn-primary btn-sm"
+            phx-click="start"
+          >
+            Start
+          </button>
           <button :if={@rollout.state == "running"} class="btn btn-warning btn-sm" phx-click="pause">
             Pause
           </button>
@@ -176,6 +344,13 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
           >
             Rollback
           </button>
+          <button
+            :if={@rollout.state == "pending" and @rollout.approval_state == "rejected"}
+            class="btn btn-error btn-sm"
+            phx-click="cancel"
+          >
+            Cancel
+          </button>
         </:action>
       </.detail_header>
 
@@ -185,6 +360,94 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
         <:stat label="Pending" value={to_string(@progress.pending)} />
         <:stat label="Failed" value={to_string(@progress.failed)} color="error" />
       </.stat_strip>
+
+      <%!-- Approval Required Panel --%>
+      <div :if={@rollout.approval_state == "pending_approval"}>
+        <.k8s_section title="Approval Required">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="text-sm">
+                <span class="font-semibold">{length(@approvals)}</span>
+                / {approvals_needed(@project)} approvals
+              </div>
+              <div class="flex gap-2">
+                <button
+                  :if={@can_approve}
+                  class="btn btn-primary btn-sm"
+                  phx-click="approve"
+                >
+                  Approve
+                </button>
+                <button
+                  :if={@can_approve and not @show_reject_form}
+                  class="btn btn-error btn-outline btn-sm"
+                  phx-click="show_reject_form"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+
+            <div
+              :if={@can_approve == false and @rollout.created_by_id == @current_user.id}
+              class="text-sm text-warning"
+            >
+              You cannot approve your own rollout.
+            </div>
+
+            <%!-- Rejection Form --%>
+            <div :if={@show_reject_form} class="border border-error/30 bg-error/5 rounded p-4">
+              <form phx-submit="reject" class="space-y-2">
+                <label class="label">
+                  <span class="label-text">Rejection comment (required)</span>
+                </label>
+                <textarea
+                  name="comment"
+                  class="textarea textarea-bordered w-full"
+                  placeholder="Explain why this rollout is being rejected..."
+                  rows="3"
+                  required
+                />
+                <div class="flex gap-2 justify-end">
+                  <button type="button" class="btn btn-ghost btn-sm" phx-click="hide_reject_form">
+                    Cancel
+                  </button>
+                  <button type="submit" class="btn btn-error btn-sm">
+                    Reject Rollout
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <%!-- Existing Approvals --%>
+            <div :if={@approvals != []} class="border-t pt-4">
+              <div class="text-sm font-semibold mb-2">Approvals</div>
+              <ul class="space-y-1">
+                <li :for={approval <- @approvals} class="text-sm flex items-center gap-2">
+                  <span class="badge badge-success badge-xs"></span>
+                  <span>{approval.user.email}</span>
+                  <span class="text-base-content/50">
+                    {Calendar.strftime(approval.approved_at, "%Y-%m-%d %H:%M")}
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </.k8s_section>
+      </div>
+
+      <%!-- Rejection Panel --%>
+      <div :if={@rollout.approval_state == "rejected"}>
+        <div class="alert alert-error">
+          <div>
+            <div class="font-semibold">Rollout Rejected</div>
+            <div class="text-sm mt-1">{@rollout.rejection_comment}</div>
+            <div :if={@rollout.rejected_at} class="text-xs mt-1 opacity-70">
+              Rejected at {Calendar.strftime(@rollout.rejected_at, "%Y-%m-%d %H:%M:%S UTC")}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <.k8s_section title="Details">
@@ -327,4 +590,8 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
   end
 
   defp format_target(_), do: "—"
+
+  defp approvals_needed(project) do
+    Project.approvals_needed(project)
+  end
 end

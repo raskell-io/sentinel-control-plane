@@ -39,6 +39,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
   @impl true
   def handle_event("create_rollout", params, socket) do
     project = socket.assigns.project
+    current_user = socket.assigns.current_user
 
     target_selector =
       case params["target_type"] do
@@ -60,25 +61,40 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
       bundle_id: params["bundle_id"],
       target_selector: target_selector,
       strategy: params["strategy"] || "rolling",
-      batch_size: parse_int(params["batch_size"], 1)
+      batch_size: parse_int(params["batch_size"], 1),
+      created_by_id: current_user && current_user.id
     }
 
     case Rollouts.create_rollout(attrs) do
       {:ok, rollout} ->
-        case Rollouts.plan_rollout(rollout) do
-          {:ok, _} ->
-            rollouts = Rollouts.list_rollouts(project.id)
+        # Submit for approval first
+        {:ok, rollout} = Rollouts.submit_for_approval(rollout)
 
-            {:noreply,
-             socket
-             |> assign(rollouts: rollouts, show_form: false)
-             |> put_flash(:info, "Rollout created and started.")}
+        # Try to plan if approved or not required
+        if Rollouts.can_start_rollout?(rollout) do
+          case Rollouts.plan_rollout(rollout) do
+            {:ok, _} ->
+              rollouts = Rollouts.list_rollouts(project.id)
 
-          {:error, :no_target_nodes} ->
-            {:noreply, put_flash(socket, :error, "No target nodes matched the selector.")}
+              {:noreply,
+               socket
+               |> assign(rollouts: rollouts, show_form: false)
+               |> put_flash(:info, "Rollout created and started.")}
 
-          {:error, reason} ->
-            {:noreply, put_flash(socket, :error, "Failed to plan rollout: #{inspect(reason)}")}
+            {:error, :no_target_nodes} ->
+              {:noreply, put_flash(socket, :error, "No target nodes matched the selector.")}
+
+            {:error, reason} ->
+              {:noreply, put_flash(socket, :error, "Failed to plan rollout: #{inspect(reason)}")}
+          end
+        else
+          # Approval required
+          rollouts = Rollouts.list_rollouts(project.id)
+
+          {:noreply,
+           socket
+           |> assign(rollouts: rollouts, show_form: false)
+           |> put_flash(:info, "Rollout created. Awaiting approval.")}
         end
 
       {:error, :bundle_not_compiled} ->
@@ -122,7 +138,11 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
           <form phx-submit="create_rollout" class="space-y-4">
             <div class="form-control">
               <label class="label"><span class="label-text">Bundle</span></label>
-              <select name="bundle_id" required class="select select-bordered select-sm w-full max-w-xs">
+              <select
+                name="bundle_id"
+                required
+                class="select select-bordered select-sm w-full max-w-xs"
+              >
                 <option value="">Select a compiled bundle</option>
                 <option :for={bundle <- @compiled_bundles} value={bundle.id}>
                   {bundle.version}
@@ -138,7 +158,9 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
               </select>
             </div>
             <div class="form-control">
-              <label class="label"><span class="label-text">Labels (key=value, comma-separated)</span></label>
+              <label class="label">
+                <span class="label-text">Labels (key=value, comma-separated)</span>
+              </label>
               <input
                 type="text"
                 name="labels"
@@ -176,7 +198,9 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
             </div>
             <div class="flex gap-2">
               <button type="submit" class="btn btn-primary btn-sm">Create & Start</button>
-              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_form">Cancel</button>
+              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_form">
+                Cancel
+              </button>
             </div>
           </form>
         </.k8s_section>
@@ -206,7 +230,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
                   {String.slice(rollout.id, 0, 8)}
                 </.link>
               </td>
-              <td>
+              <td class="flex items-center gap-1">
                 <span class={[
                   "badge badge-sm",
                   rollout.state == "completed" && "badge-success",
@@ -217,6 +241,18 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
                   rollout.state == "pending" && "badge-ghost"
                 ]}>
                   {rollout.state}
+                </span>
+                <span
+                  :if={rollout.state == "pending" and rollout.approval_state == "pending_approval"}
+                  class="badge badge-sm badge-warning"
+                >
+                  awaiting approval
+                </span>
+                <span
+                  :if={rollout.state == "pending" and rollout.approval_state == "rejected"}
+                  class="badge badge-sm badge-error"
+                >
+                  rejected
                 </span>
               </td>
               <td class="font-mono text-sm">{rollout.bundle_id |> String.slice(0, 8)}</td>

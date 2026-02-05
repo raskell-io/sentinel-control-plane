@@ -10,6 +10,7 @@ defmodule SentinelCp.Rollouts.Rollout do
 
   @states ~w(pending running paused completed cancelled failed)
   @strategies ~w(rolling all_at_once)
+  @approval_states ~w(not_required pending_approval approved rejected)
 
   schema "rollouts" do
     field :target_selector, :map
@@ -24,10 +25,17 @@ defmodule SentinelCp.Rollouts.Rollout do
     field :completed_at, :utc_datetime
     field :error, :map
 
+    # Approval workflow fields
+    field :approval_state, :string, default: "not_required"
+    field :rejection_comment, :string
+    field :rejected_by_id, :binary_id
+    field :rejected_at, :utc_datetime
+
     belongs_to :project, SentinelCp.Projects.Project
     belongs_to :bundle, SentinelCp.Bundles.Bundle
     has_many :steps, SentinelCp.Rollouts.RolloutStep
     has_many :node_bundle_statuses, SentinelCp.Rollouts.NodeBundleStatus
+    has_many :approvals, SentinelCp.Rollouts.RolloutApproval
 
     timestamps(type: :utc_datetime)
   end
@@ -119,5 +127,28 @@ defmodule SentinelCp.Rollouts.Rollout do
           ]
       end
     end)
+  end
+
+  @doc """
+  Changeset for updating approval state.
+  """
+  def approval_changeset(rollout, approval_state, opts \\ []) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    changes =
+      if approval_state == "rejected" do
+        %{
+          approval_state: approval_state,
+          rejection_comment: opts[:comment],
+          rejected_by_id: opts[:rejected_by_id],
+          rejected_at: now
+        }
+      else
+        %{approval_state: approval_state}
+      end
+
+    rollout
+    |> change(changes)
+    |> validate_inclusion(:approval_state, @approval_states)
   end
 end

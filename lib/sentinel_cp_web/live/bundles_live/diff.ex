@@ -51,7 +51,17 @@ defmodule SentinelCpWeb.BundlesLive.Diff do
   def render(assigns) do
     ~H"""
     <div class="space-y-4">
-      <h1 class="text-xl font-bold">Compare Bundles</h1>
+      <.detail_header
+        name="Compare Bundles"
+        resource_type="bundle"
+        back_path={project_bundles_path(@org, @project)}
+      >
+        <:badge>
+          <span :if={@bundle_a && @bundle_b} class="text-sm font-normal text-base-content/70">
+            {@bundle_a.version} → {@bundle_b.version}
+          </span>
+        </:badge>
+      </.detail_header>
 
       <.table_toolbar>
         <:filters>
@@ -129,7 +139,10 @@ defmodule SentinelCpWeb.BundlesLive.Diff do
             </ul>
           </div>
           <div
-            :if={@manifest_diff.added == [] and @manifest_diff.removed == [] and @manifest_diff.modified == []}
+            :if={
+              @manifest_diff.added == [] and @manifest_diff.removed == [] and
+                @manifest_diff.modified == []
+            }
             class="text-base-content/50 text-sm"
           >
             No manifest changes.
@@ -165,6 +178,12 @@ defmodule SentinelCpWeb.BundlesLive.Diff do
 
   defp resolve_org(%{"org_slug" => slug}), do: Orgs.get_org_by_slug(slug)
   defp resolve_org(_), do: nil
+
+  defp project_bundles_path(%{slug: org_slug}, project),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/bundles"
+
+  defp project_bundles_path(nil, project),
+    do: ~p"/projects/#{project.slug}/bundles"
 
   defp diff_path(%{slug: org_slug}, project, a_id, b_id),
     do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/bundles/diff?a=#{a_id}&b=#{b_id}"
