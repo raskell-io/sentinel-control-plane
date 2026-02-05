@@ -5,7 +5,7 @@ defmodule SentinelCp.Nodes do
 
   import Ecto.Query, warn: false
   alias SentinelCp.Repo
-  alias SentinelCp.Nodes.{Node, NodeEvent, NodeHeartbeat, NodeRuntimeConfig}
+  alias SentinelCp.Nodes.{DriftEvent, Node, NodeEvent, NodeHeartbeat, NodeRuntimeConfig}
 
   @stale_threshold_seconds 120
 
@@ -298,5 +298,177 @@ defmodule SentinelCp.Nodes do
       where: s.row_num > ^keep_count
     )
     |> Repo.delete_all()
+  end
+
+  ## Drift Detection
+
+  @doc """
+  Sets the expected_bundle_id for a list of node IDs.
+  """
+  def set_expected_bundle_for_nodes(node_ids, bundle_id) when is_list(node_ids) do
+    from(n in Node, where: n.id in ^node_ids)
+    |> Repo.update_all(set: [expected_bundle_id: bundle_id])
+  end
+
+  @doc """
+  Lists nodes that are drifted (active_bundle_id != expected_bundle_id).
+  Only considers online nodes with an expected_bundle_id set.
+  """
+  def list_drifted_nodes(project_id) do
+    from(n in Node,
+      where: n.project_id == ^project_id,
+      where: n.status == "online",
+      where: not is_nil(n.expected_bundle_id),
+      where: n.active_bundle_id != n.expected_bundle_id or is_nil(n.active_bundle_id),
+      order_by: [asc: n.name]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Counts drifted nodes for a project.
+  """
+  def count_drifted_nodes(project_id) do
+    from(n in Node,
+      where: n.project_id == ^project_id,
+      where: n.status == "online",
+      where: not is_nil(n.expected_bundle_id),
+      where: n.active_bundle_id != n.expected_bundle_id or is_nil(n.active_bundle_id)
+    )
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
+  Returns drift statistics for a project.
+  """
+  def get_drift_stats(project_id) do
+    total_managed =
+      from(n in Node,
+        where: n.project_id == ^project_id,
+        where: not is_nil(n.expected_bundle_id)
+      )
+      |> Repo.aggregate(:count)
+
+    drifted = count_drifted_nodes(project_id)
+
+    %{
+      total_managed: total_managed,
+      drifted: drifted,
+      in_sync: total_managed - drifted
+    }
+  end
+
+  @doc """
+  Returns drift statistics across multiple projects.
+  """
+  def get_fleet_drift_stats(project_ids) when is_list(project_ids) do
+    if project_ids == [] do
+      %{total_managed: 0, drifted: 0, in_sync: 0}
+    else
+      total_managed =
+        from(n in Node,
+          where: n.project_id in ^project_ids,
+          where: not is_nil(n.expected_bundle_id)
+        )
+        |> Repo.aggregate(:count)
+
+      drifted =
+        from(n in Node,
+          where: n.project_id in ^project_ids,
+          where: n.status == "online",
+          where: not is_nil(n.expected_bundle_id),
+          where: n.active_bundle_id != n.expected_bundle_id or is_nil(n.active_bundle_id)
+        )
+        |> Repo.aggregate(:count)
+
+      %{
+        total_managed: total_managed,
+        drifted: drifted,
+        in_sync: total_managed - drifted
+      }
+    end
+  end
+
+  @doc """
+  Checks if a node is drifted.
+  """
+  def node_drifted?(%Node{expected_bundle_id: nil}), do: false
+
+  def node_drifted?(%Node{expected_bundle_id: expected, active_bundle_id: active}) do
+    expected != active
+  end
+
+  ## Drift Events
+
+  @doc """
+  Creates a drift event.
+  """
+  def create_drift_event(attrs) do
+    %DriftEvent{}
+    |> DriftEvent.create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Resolves a drift event with the given resolution.
+  """
+  def resolve_drift_event(%DriftEvent{} = event, resolution) do
+    event
+    |> DriftEvent.resolve_changeset(resolution)
+    |> Repo.update()
+  end
+
+  @doc """
+  Gets the active (unresolved) drift event for a node.
+  """
+  def get_active_drift_event(node_id) do
+    from(d in DriftEvent,
+      where: d.node_id == ^node_id,
+      where: is_nil(d.resolved_at),
+      order_by: [desc: d.detected_at],
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  @doc """
+  Lists drift events for a project.
+  """
+  def list_drift_events(project_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+    include_resolved = Keyword.get(opts, :include_resolved, true)
+
+    query =
+      from(d in DriftEvent,
+        where: d.project_id == ^project_id,
+        order_by: [desc: d.detected_at],
+        limit: ^limit,
+        preload: [:node]
+      )
+
+    query =
+      if include_resolved do
+        query
+      else
+        where(query, [d], is_nil(d.resolved_at))
+      end
+
+    Repo.all(query)
+  end
+
+  @doc """
+  Resolves all active drift events for a node.
+  """
+  def resolve_node_drift_events(node_id, resolution) do
+    from(d in DriftEvent,
+      where: d.node_id == ^node_id,
+      where: is_nil(d.resolved_at)
+    )
+    |> Repo.update_all(
+      set: [
+        resolved_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        resolution: resolution
+      ]
+    )
   end
 end

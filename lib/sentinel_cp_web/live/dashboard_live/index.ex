@@ -48,6 +48,11 @@ defmodule SentinelCpWeb.DashboardLive.Index do
         <:stat label="Projects" value={to_string(@overview.project_count)} />
         <:stat label="Nodes Online" value={to_string(@overview.node_stats.online)} color="success" />
         <:stat label="Nodes Offline" value={to_string(@overview.node_stats.offline)} color="error" />
+        <:stat
+          label="Drifted"
+          value={to_string(@overview.drift_stats.drifted)}
+          color={if @overview.drift_stats.drifted > 0, do: "warning", else: nil}
+        />
         <:stat label="Active Rollouts" value={to_string(@overview.active_rollouts)} color="warning" />
         <:stat
           label="Success Rate"

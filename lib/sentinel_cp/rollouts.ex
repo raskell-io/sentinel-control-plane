@@ -731,6 +731,9 @@ defmodule SentinelCp.Rollouts do
         set: [state: "active", activated_at: now, verified_at: now, last_report_at: now]
       )
 
+      # Set expected_bundle_id for nodes that completed this step
+      SentinelCp.Nodes.set_expected_bundle_for_nodes(step.node_ids, rollout.bundle_id)
+
       broadcast_rollout_update(rollout)
       {:ok, :step_completed}
     else

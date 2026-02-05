@@ -5,6 +5,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
   use SentinelCpWeb, :live_view
 
   alias SentinelCp.{Audit, Nodes, Orgs, Projects}
+  alias SentinelCp.Nodes.Node
 
   @impl true
   def mount(%{"project_slug" => project_slug, "id" => node_id} = params, _session, socket) do
@@ -175,6 +176,8 @@ defmodule SentinelCpWeb.NodesLive.Show do
         </:action>
       </.detail_header>
 
+      <.drift_alert :if={node_drifted?(@node)} node={@node} org={@org} project={@project} />
+
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <.k8s_section title="Node Information">
           <.definition_list>
@@ -201,6 +204,15 @@ defmodule SentinelCpWeb.NodesLive.Show do
                 </.link>
               <% else %>
                 <span class="text-base-content/50">None</span>
+              <% end %>
+            </:item>
+            <:item label="Expected Bundle">
+              <%= if @node.expected_bundle_id do %>
+                <.link navigate={bundle_path(@org, @project, @node.expected_bundle_id)} class="link link-primary font-mono text-sm">
+                  {String.slice(@node.expected_bundle_id, 0, 8)}…
+                </.link>
+              <% else %>
+                <span class="text-base-content/50">Unmanaged</span>
               <% end %>
             </:item>
           </.definition_list>
@@ -360,6 +372,37 @@ defmodule SentinelCpWeb.NodesLive.Show do
     ~H"""
     <span class={"badge badge-sm #{@class}"}>{@text}</span>
     """
+  end
+
+  defp drift_alert(assigns) do
+    ~H"""
+    <div class="alert alert-warning">
+      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+      <div>
+        <h3 class="font-bold">Configuration Drift Detected</h3>
+        <div class="text-sm">
+          Running bundle
+          <%= if @node.active_bundle_id do %>
+            <.link navigate={bundle_path(@org, @project, @node.active_bundle_id)} class="font-mono link">
+              {String.slice(@node.active_bundle_id, 0, 8)}…
+            </.link>
+          <% else %>
+            <span class="font-mono">none</span>
+          <% end %>
+          but should be running
+          <.link navigate={bundle_path(@org, @project, @node.expected_bundle_id)} class="font-mono link">
+            {String.slice(@node.expected_bundle_id, 0, 8)}…
+          </.link>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp node_drifted?(%Node{expected_bundle_id: nil}), do: false
+
+  defp node_drifted?(%Node{expected_bundle_id: expected, active_bundle_id: active}) do
+    expected != active
   end
 
   defp health_badge(assigns) do

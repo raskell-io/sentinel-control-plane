@@ -22,6 +22,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
         nodes = Nodes.list_nodes(project.id)
         stats = Nodes.get_node_stats(project.id)
+        drift_stats = Nodes.get_drift_stats(project.id)
 
         {:ok,
          socket
@@ -29,6 +30,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
          |> assign(:project, project)
          |> assign(:nodes, nodes)
          |> assign(:stats, stats)
+         |> assign(:drift_stats, drift_stats)
          |> assign(:status_filter, nil)
          |> assign(:show_form, false)
          |> assign(:created_node_key, nil)
@@ -84,10 +86,11 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
         nodes = filter_nodes(project.id, socket.assigns.status_filter)
         stats = Nodes.get_node_stats(project.id)
+        drift_stats = Nodes.get_drift_stats(project.id)
 
         {:noreply,
          socket
-         |> assign(nodes: nodes, stats: stats, show_form: false, created_node_key: node.node_key)
+         |> assign(nodes: nodes, stats: stats, drift_stats: drift_stats, show_form: false, created_node_key: node.node_key)
          |> put_flash(:info, "Node registered.")}
 
       {:error, changeset} ->
@@ -130,14 +133,16 @@ defmodule SentinelCpWeb.NodesLive.Index do
   def handle_info(:refresh, socket) do
     nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter)
     stats = Nodes.get_node_stats(socket.assigns.project.id)
-    {:noreply, assign(socket, nodes: nodes, stats: stats)}
+    drift_stats = Nodes.get_drift_stats(socket.assigns.project.id)
+    {:noreply, assign(socket, nodes: nodes, stats: stats, drift_stats: drift_stats)}
   end
 
   @impl true
   def handle_info({:node_updated, _node}, socket) do
     nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter)
     stats = Nodes.get_node_stats(socket.assigns.project.id)
-    {:noreply, assign(socket, nodes: nodes, stats: stats)}
+    drift_stats = Nodes.get_drift_stats(socket.assigns.project.id)
+    {:noreply, assign(socket, nodes: nodes, stats: stats, drift_stats: drift_stats)}
   end
 
   defp apply_filter(socket, status_filter) do
@@ -168,6 +173,11 @@ defmodule SentinelCpWeb.NodesLive.Index do
         <:stat label="Online" value={to_string(Map.get(@stats, "online", 0))} color="success" />
         <:stat label="Offline" value={to_string(Map.get(@stats, "offline", 0))} color="error" />
         <:stat label="Unknown" value={to_string(Map.get(@stats, "unknown", 0))} />
+        <:stat
+          label="Drifted"
+          value={to_string(@drift_stats.drifted)}
+          color={if @drift_stats.drifted > 0, do: "warning", else: nil}
+        />
       </.stat_strip>
 
       <.table_toolbar>
@@ -242,6 +252,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
             <tr>
               <th class="text-xs uppercase">Name</th>
               <th class="text-xs uppercase">Status</th>
+              <th class="text-xs uppercase">Config</th>
               <th class="text-xs uppercase">Version</th>
               <th class="text-xs uppercase">IP</th>
               <th class="text-xs uppercase">Last Seen</th>
@@ -261,6 +272,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
                   </.link>
                 </td>
                 <td><.status_badge status={node.status} /></td>
+                <td><.config_status_badge node={node} /></td>
                 <td class="font-mono text-sm">{node.version || "-"}</td>
                 <td class="font-mono text-sm">{node.ip || "-"}</td>
                 <td class="text-sm text-base-content/60">
@@ -298,6 +310,26 @@ defmodule SentinelCpWeb.NodesLive.Index do
         "online" -> {"badge-success", "Online"}
         "offline" -> {"badge-error", "Offline"}
         _ -> {"badge-ghost", "Unknown"}
+      end
+
+    assigns = assign(assigns, class: class, text: text)
+
+    ~H"""
+    <span class={"badge badge-sm #{@class}"}>{@text}</span>
+    """
+  end
+
+  defp config_status_badge(assigns) do
+    {class, text} =
+      cond do
+        is_nil(assigns.node.expected_bundle_id) ->
+          {"badge-ghost", "Unmanaged"}
+
+        Nodes.node_drifted?(assigns.node) ->
+          {"badge-warning", "Drifted"}
+
+        true ->
+          {"badge-success", "In Sync"}
       end
 
     assigns = assign(assigns, class: class, text: text)

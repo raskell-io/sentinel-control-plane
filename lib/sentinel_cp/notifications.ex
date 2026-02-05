@@ -7,6 +7,7 @@ defmodule SentinelCp.Notifications do
 
   require Logger
 
+  alias SentinelCp.Nodes.{DriftEvent, Node}
   alias SentinelCp.Projects
   alias SentinelCp.Projects.Project
   alias SentinelCp.Rollouts.Rollout
@@ -83,6 +84,30 @@ defmodule SentinelCp.Notifications do
     end
   end
 
+  @doc """
+  Sends a notification about configuration drift being detected on a node.
+  """
+  def notify_drift_detected(%Node{} = node, %DriftEvent{} = event, %Project{} = project) do
+    if Project.notifications_enabled?(project) do
+      payload = %{
+        event: "node.drift_detected",
+        timestamp: DateTime.utc_now() |> DateTime.to_iso8601(),
+        node: node_info(node),
+        project: project_info(project),
+        drift: %{
+          expected_bundle_id: event.expected_bundle_id,
+          actual_bundle_id: event.actual_bundle_id,
+          detected_at: DateTime.to_iso8601(event.detected_at)
+        }
+      }
+
+      webhook_url = Project.notification_webhook(project)
+      send_webhook(webhook_url, payload)
+    else
+      :ok
+    end
+  end
+
   defp build_rollout_payload(rollout, project, old_state, new_state) do
     event =
       case new_state do
@@ -126,6 +151,18 @@ defmodule SentinelCp.Notifications do
       id: project.id,
       name: project.name,
       slug: project.slug
+    }
+  end
+
+  defp node_info(node) do
+    %{
+      id: node.id,
+      name: node.name,
+      hostname: node.hostname,
+      ip: node.ip,
+      status: node.status,
+      active_bundle_id: node.active_bundle_id,
+      expected_bundle_id: node.expected_bundle_id
     }
   end
 
