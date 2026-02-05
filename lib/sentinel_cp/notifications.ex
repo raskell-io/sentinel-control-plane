@@ -95,9 +95,37 @@ defmodule SentinelCp.Notifications do
         node: node_info(node),
         project: project_info(project),
         drift: %{
+          event_id: event.id,
           expected_bundle_id: event.expected_bundle_id,
           actual_bundle_id: event.actual_bundle_id,
           detected_at: DateTime.to_iso8601(event.detected_at)
+        }
+      }
+
+      webhook_url = Project.notification_webhook(project)
+      send_webhook(webhook_url, payload)
+    else
+      :ok
+    end
+  end
+
+  @doc """
+  Sends a notification about configuration drift being resolved on a node.
+  """
+  def notify_drift_resolved(%Node{} = node, %DriftEvent{} = event, %Project{} = project) do
+    if Project.notifications_enabled?(project) do
+      payload = %{
+        event: "node.drift_resolved",
+        timestamp: DateTime.utc_now() |> DateTime.to_iso8601(),
+        node: node_info(node),
+        project: project_info(project),
+        drift: %{
+          event_id: event.id,
+          expected_bundle_id: event.expected_bundle_id,
+          actual_bundle_id: event.actual_bundle_id,
+          detected_at: DateTime.to_iso8601(event.detected_at),
+          resolved_at: event.resolved_at && DateTime.to_iso8601(event.resolved_at),
+          resolution: event.resolution
         }
       }
 

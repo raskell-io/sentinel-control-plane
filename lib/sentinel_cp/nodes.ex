@@ -423,6 +423,10 @@ defmodule SentinelCp.Nodes do
       {:ok, event} ->
         SentinelCp.PromEx.SentinelPlugin.emit_drift_detected()
         broadcast_drift_event(event, :detected)
+
+        # Async: send webhook and check auto-remediation
+        Task.start(fn -> handle_drift_detected(event) end)
+
         result
 
       _ ->
@@ -443,10 +447,83 @@ defmodule SentinelCp.Nodes do
       {:ok, updated_event} ->
         SentinelCp.PromEx.SentinelPlugin.emit_drift_resolved(resolution)
         broadcast_drift_event(updated_event, :resolved)
+
+        # Async: send webhook notification
+        Task.start(fn -> handle_drift_resolved(updated_event) end)
+
         result
 
       _ ->
         result
+    end
+  end
+
+  defp handle_drift_detected(event) do
+    alias SentinelCp.{Notifications, Projects, Rollouts}
+    alias SentinelCp.Projects.Project
+
+    with node when not is_nil(node) <- get_node(event.node_id),
+         project when not is_nil(project) <- Projects.get_project(event.project_id) do
+      # Send webhook notification
+      Notifications.notify_drift_detected(node, event, project)
+
+      # Check if auto-remediation is enabled
+      if Project.drift_auto_remediation?(project) do
+        trigger_auto_remediation(project, node, event)
+      end
+    end
+  end
+
+  defp handle_drift_resolved(event) do
+    alias SentinelCp.{Notifications, Projects}
+
+    with node when not is_nil(node) <- get_node(event.node_id),
+         project when not is_nil(project) <- Projects.get_project(event.project_id) do
+      Notifications.notify_drift_resolved(node, event, project)
+    end
+  end
+
+  defp trigger_auto_remediation(project, node, event) do
+    alias SentinelCp.Rollouts
+
+    # Create a rollout targeting just this node with the expected bundle
+    attrs = %{
+      project_id: project.id,
+      bundle_id: event.expected_bundle_id,
+      target_selector: %{"type" => "node_ids", "node_ids" => [node.id]},
+      strategy: "all_at_once",
+      batch_size: 1
+    }
+
+    case Rollouts.create_rollout(attrs) do
+      {:ok, rollout} ->
+        # Mark drift as being remediated
+        resolve_drift_event(Repo.reload!(event), "rollout_started")
+
+        # Plan and start the rollout
+        case Rollouts.plan_rollout(rollout) do
+          {:ok, _} ->
+            require Logger
+            Logger.info("Auto-remediation rollout started",
+              rollout_id: rollout.id,
+              node_id: node.id,
+              bundle_id: event.expected_bundle_id
+            )
+
+          {:error, reason} ->
+            require Logger
+            Logger.warning("Auto-remediation rollout failed to plan",
+              rollout_id: rollout.id,
+              reason: inspect(reason)
+            )
+        end
+
+      {:error, reason} ->
+        require Logger
+        Logger.warning("Auto-remediation rollout creation failed",
+          node_id: node.id,
+          reason: inspect(reason)
+        )
     end
   end
 

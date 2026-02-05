@@ -112,4 +112,12 @@ defmodule SentinelCp.Projects.Project do
     url = notification_webhook(project)
     url != nil and url != ""
   end
+
+  @doc """
+  Returns whether drift auto-remediation is enabled for this project.
+  When enabled, a rollout is automatically triggered when drift is detected.
+  """
+  def drift_auto_remediation?(%__MODULE__{settings: settings}) do
+    Map.get(settings || %{}, "drift_auto_remediation", false)
+  end
 end

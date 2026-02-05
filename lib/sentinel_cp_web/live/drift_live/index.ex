@@ -49,6 +49,25 @@ defmodule SentinelCpWeb.DriftLive.Index do
   end
 
   @impl true
+  def handle_event("resolve_all", _, socket) do
+    project = socket.assigns.project
+    events = Nodes.list_drift_events(project.id, include_resolved: false)
+
+    resolved_count =
+      Enum.reduce(events, 0, fn event, count ->
+        case Nodes.resolve_drift_event(event, "manual") do
+          {:ok, _} -> count + 1
+          _ -> count
+        end
+      end)
+
+    {:noreply,
+     socket
+     |> load_data(socket.assigns.org, project, socket.assigns.status_filter)
+     |> put_flash(:info, "Resolved #{resolved_count} drift event(s).")}
+  end
+
+  @impl true
   def handle_info({:drift_event, _type, _node_id}, socket) do
     {:noreply, load_data(socket, socket.assigns.org, socket.assigns.project, socket.assigns.status_filter)}
   end
@@ -109,6 +128,14 @@ defmodule SentinelCpWeb.DriftLive.Index do
               <option value="resolved" selected={@status_filter == "resolved"}>Resolved</option>
             </select>
           </form>
+          <button
+            :if={@active_count > 0}
+            phx-click="resolve_all"
+            data-confirm="Are you sure you want to resolve all active drift events?"
+            class="btn btn-outline btn-sm"
+          >
+            Resolve All ({@active_count})
+          </button>
         </:actions>
       </.table_toolbar>
 

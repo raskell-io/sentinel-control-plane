@@ -122,5 +122,27 @@ defmodule SentinelCpWeb.DriftLiveTest do
       {:ok, _view, html} = live(conn, ~p"/projects/#{project.slug}/drift")
       assert html =~ "none"
     end
+
+    test "resolve all button resolves all active events", %{conn: conn, project: project} do
+      node1 = node_fixture(%{project: project, name: "node-1"})
+      node2 = node_fixture(%{project: project, name: "node-2"})
+      _event1 = drift_event_fixture(%{node: node1, project: project})
+      _event2 = drift_event_fixture(%{node: node2, project: project})
+
+      {:ok, view, html} = live(conn, ~p"/projects/#{project.slug}/drift")
+      assert html =~ "Resolve All (2)"
+
+      view
+      |> element(~s|button[phx-click=resolve_all]|)
+      |> render_click()
+
+      html = render(view)
+      # Both events should now be resolved
+      assert html =~ "Resolved</span>"
+      # Active count should be 0
+      assert html =~ ">Active Drifts</div><div class=\"text-2xl font-bold \">\n        0"
+      # Resolve All button should no longer be present (no active events)
+      refute html =~ "Resolve All"
+    end
   end
 end
