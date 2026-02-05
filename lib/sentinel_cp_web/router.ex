@@ -108,6 +108,7 @@ defmodule SentinelCpWeb.Router do
     live "/projects/:project_slug/bundles/diff", BundlesLive.Diff, :diff
     live "/projects/:project_slug/bundles/:id", BundlesLive.Show, :show
     live "/projects/:project_slug/rollouts", RolloutsLive.Index, :index
+    live "/projects/:project_slug/rollouts/templates", RolloutTemplatesLive.Index, :index
     live "/projects/:project_slug/rollouts/:id", RolloutsLive.Show, :show
 
     # Org-scoped dashboard
@@ -122,6 +123,7 @@ defmodule SentinelCpWeb.Router do
     live "/orgs/:org_slug/projects/:project_slug/bundles/diff", BundlesLive.Diff, :diff
     live "/orgs/:org_slug/projects/:project_slug/bundles/:id", BundlesLive.Show, :show
     live "/orgs/:org_slug/projects/:project_slug/rollouts", RolloutsLive.Index, :index
+    live "/orgs/:org_slug/projects/:project_slug/rollouts/templates", RolloutTemplatesLive.Index, :index
     live "/orgs/:org_slug/projects/:project_slug/rollouts/:id", RolloutsLive.Show, :show
   end
 

@@ -8,8 +8,107 @@ defmodule SentinelCp.Rollouts do
 
   import Ecto.Query, warn: false
   alias SentinelCp.Repo
-  alias SentinelCp.Rollouts.{Rollout, RolloutStep, NodeBundleStatus, RolloutApproval, TickWorker}
+  alias SentinelCp.Rollouts.{Rollout, RolloutStep, NodeBundleStatus, RolloutApproval, RolloutTemplate, TickWorker}
   alias SentinelCp.{Bundles, Nodes, Notifications, Orgs, Projects}
+
+  ## Rollout Template CRUD
+
+  @doc """
+  Creates a rollout template.
+  """
+  def create_template(attrs) do
+    %RolloutTemplate{}
+    |> RolloutTemplate.create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a rollout template.
+  """
+  def update_template(%RolloutTemplate{} = template, attrs) do
+    template
+    |> RolloutTemplate.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a rollout template.
+  """
+  def delete_template(%RolloutTemplate{} = template) do
+    Repo.delete(template)
+  end
+
+  @doc """
+  Gets a rollout template by ID.
+  """
+  def get_template(id), do: Repo.get(RolloutTemplate, id)
+
+  @doc """
+  Gets a rollout template by ID, raises if not found.
+  """
+  def get_template!(id), do: Repo.get!(RolloutTemplate, id)
+
+  @doc """
+  Lists all templates for a project, ordered: default first, then by name.
+  """
+  def list_templates(project_id) do
+    from(t in RolloutTemplate,
+      where: t.project_id == ^project_id,
+      order_by: [desc: t.is_default, asc: t.name]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets the default template for a project.
+  """
+  def get_default_template(project_id) do
+    from(t in RolloutTemplate,
+      where: t.project_id == ^project_id and t.is_default == true
+    )
+    |> Repo.one()
+  end
+
+  @doc """
+  Sets a template as the default for its project.
+  Unsets any existing default in the same project.
+  """
+  def set_default_template(%RolloutTemplate{} = template) do
+    Repo.transaction(fn ->
+      # Clear existing default
+      from(t in RolloutTemplate,
+        where: t.project_id == ^template.project_id and t.is_default == true
+      )
+      |> Repo.update_all(set: [is_default: false])
+
+      # Set this template as default
+      {:ok, updated} =
+        template
+        |> Ecto.Changeset.change(is_default: true)
+        |> Repo.update()
+
+      updated
+    end)
+  end
+
+  @doc """
+  Clears the default template for a project.
+  """
+  def clear_default_template(project_id) do
+    from(t in RolloutTemplate,
+      where: t.project_id == ^project_id and t.is_default == true
+    )
+    |> Repo.update_all(set: [is_default: false])
+
+    :ok
+  end
+
+  @doc """
+  Returns a changeset for tracking template changes.
+  """
+  def change_template(%RolloutTemplate{} = template, attrs \\ %{}) do
+    RolloutTemplate.update_changeset(template, attrs)
+  end
 
   ## Rollout CRUD
 

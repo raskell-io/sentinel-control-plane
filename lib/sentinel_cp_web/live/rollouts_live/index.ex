@@ -2,6 +2,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
   use SentinelCpWeb, :live_view
 
   alias SentinelCp.{Rollouts, Bundles, Orgs, Projects}
+  alias SentinelCp.Rollouts.RolloutTemplate
 
   @impl true
   def mount(%{"project_slug" => slug} = params, _session, socket) do
@@ -18,6 +19,15 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
 
         rollouts = Rollouts.list_rollouts(project.id)
         compiled_bundles = Bundles.list_bundles(project.id, status: "compiled")
+        templates = Rollouts.list_templates(project.id)
+        default_template = Rollouts.get_default_template(project.id)
+
+        form_values =
+          if default_template do
+            template_to_form_values(default_template)
+          else
+            default_form_values()
+          end
 
         {:ok,
          assign(socket,
@@ -26,6 +36,9 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
            project: project,
            rollouts: rollouts,
            compiled_bundles: compiled_bundles,
+           templates: templates,
+           selected_template_id: default_template && default_template.id,
+           form_values: form_values,
            show_form: false
          )}
     end
@@ -34,6 +47,27 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
   @impl true
   def handle_event("toggle_form", _, socket) do
     {:noreply, assign(socket, show_form: !socket.assigns.show_form)}
+  end
+
+  @impl true
+  def handle_event("select_template", %{"template_id" => ""}, socket) do
+    {:noreply,
+     assign(socket,
+       selected_template_id: nil,
+       form_values: default_form_values()
+     )}
+  end
+
+  @impl true
+  def handle_event("select_template", %{"template_id" => template_id}, socket) do
+    template = Rollouts.get_template!(template_id)
+    form_values = template_to_form_values(template)
+
+    {:noreply,
+     assign(socket,
+       selected_template_id: template_id,
+       form_values: form_values
+     )}
   end
 
   @impl true
@@ -141,6 +175,9 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
           <h1 class="text-xl font-bold">Rollouts</h1>
         </:filters>
         <:actions>
+          <.link navigate={templates_path(@org, @project)} class="btn btn-outline btn-sm">
+            Manage Templates
+          </.link>
           <button class="btn btn-primary btn-sm" phx-click="toggle_form">
             New Rollout
           </button>
@@ -150,6 +187,28 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
       <div :if={@show_form}>
         <.k8s_section title="Create Rollout">
           <form phx-submit="create_rollout" class="space-y-4">
+            <div :if={@templates != []} class="form-control">
+              <label class="label"><span class="label-text">Template</span></label>
+              <select
+                name="template_id"
+                phx-change="select_template"
+                class="select select-bordered select-sm w-full max-w-xs"
+              >
+                <option value="">No template</option>
+                <option
+                  :for={template <- @templates}
+                  value={template.id}
+                  selected={@selected_template_id == template.id}
+                >
+                  {template.name}{if template.is_default, do: " (default)", else: ""}
+                </option>
+              </select>
+              <label class="label">
+                <span class="label-text-alt text-base-content/50">
+                  Select a template to pre-fill rollout settings
+                </span>
+              </label>
+            </div>
             <div class="form-control">
               <label class="label"><span class="label-text">Bundle</span></label>
               <select
@@ -166,9 +225,13 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
             <div class="form-control">
               <label class="label"><span class="label-text">Target</span></label>
               <select name="target_type" class="select select-bordered select-sm w-full max-w-xs">
-                <option value="all">All nodes</option>
-                <option value="labels">By labels</option>
-                <option value="node_ids">Specific node IDs</option>
+                <option value="all" selected={@form_values.target_type == "all"}>All nodes</option>
+                <option value="labels" selected={@form_values.target_type == "labels"}>
+                  By labels
+                </option>
+                <option value="node_ids" selected={@form_values.target_type == "node_ids"}>
+                  Specific node IDs
+                </option>
               </select>
             </div>
             <div class="form-control">
@@ -178,6 +241,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
               <input
                 type="text"
                 name="labels"
+                value={@form_values.labels}
                 class="input input-bordered input-sm w-full max-w-xs"
                 placeholder="env=production,region=us-east"
               />
@@ -187,6 +251,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
               <input
                 type="text"
                 name="node_ids"
+                value={@form_values.node_ids}
                 class="input input-bordered input-sm w-full max-w-xs"
                 placeholder="node-id-1,node-id-2"
               />
@@ -195,8 +260,12 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
               <div class="form-control">
                 <label class="label"><span class="label-text">Strategy</span></label>
                 <select name="strategy" class="select select-bordered select-sm">
-                  <option value="rolling">Rolling</option>
-                  <option value="all_at_once">All at once</option>
+                  <option value="rolling" selected={@form_values.strategy == "rolling"}>
+                    Rolling
+                  </option>
+                  <option value="all_at_once" selected={@form_values.strategy == "all_at_once"}>
+                    All at once
+                  </option>
                 </select>
               </div>
               <div class="form-control">
@@ -204,7 +273,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
                 <input
                   type="number"
                   name="batch_size"
-                  value="1"
+                  value={@form_values.batch_size}
                   min="1"
                   class="input input-bordered input-sm w-24"
                 />
@@ -328,6 +397,12 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
   defp rollout_show_path(nil, project, rollout),
     do: ~p"/projects/#{project.slug}/rollouts/#{rollout.id}"
 
+  defp templates_path(%{slug: org_slug}, project),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/rollouts/templates"
+
+  defp templates_path(nil, project),
+    do: ~p"/projects/#{project.slug}/rollouts/templates"
+
   defp format_target(%{"type" => "all"}), do: "All nodes"
 
   defp format_target(%{"type" => "labels", "labels" => labels}) do
@@ -377,4 +452,44 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
       _ -> nil
     end
   end
+
+  defp default_form_values do
+    %{
+      target_type: "all",
+      labels: "",
+      node_ids: "",
+      strategy: "rolling",
+      batch_size: 1
+    }
+  end
+
+  defp template_to_form_values(%RolloutTemplate{} = template) do
+    %{
+      target_type: get_target_type(template.target_selector),
+      labels: format_labels_for_input(template.target_selector),
+      node_ids: format_node_ids_for_input(template.target_selector),
+      strategy: template.strategy || "rolling",
+      batch_size: template.batch_size || 1
+    }
+  end
+
+  defp get_target_type(nil), do: "all"
+  defp get_target_type(%{"type" => type}), do: type
+  defp get_target_type(_), do: "all"
+
+  defp format_labels_for_input(nil), do: ""
+
+  defp format_labels_for_input(%{"type" => "labels", "labels" => labels}) when is_map(labels) do
+    labels |> Enum.map_join(", ", fn {k, v} -> "#{k}=#{v}" end)
+  end
+
+  defp format_labels_for_input(_), do: ""
+
+  defp format_node_ids_for_input(nil), do: ""
+
+  defp format_node_ids_for_input(%{"type" => "node_ids", "node_ids" => ids}) when is_list(ids) do
+    Enum.join(ids, ", ")
+  end
+
+  defp format_node_ids_for_input(_), do: ""
 end
