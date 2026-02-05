@@ -170,6 +170,11 @@ defmodule SentinelCpWeb.Router do
       get "/nodes", ProjectNodesController, :index
       get "/nodes/stats", ProjectNodesController, :stats
       get "/nodes/:id", ProjectNodesController, :show
+
+      # Drift events (read)
+      get "/drift", DriftController, :index
+      get "/drift/stats", DriftController, :stats
+      get "/drift/:id", DriftController, :show
     end
   end
 
@@ -179,6 +184,10 @@ defmodule SentinelCpWeb.Router do
 
     scope "/projects/:project_slug" do
       delete "/nodes/:id", ProjectNodesController, :delete
+
+      # Drift events (write)
+      post "/drift/:id/resolve", DriftController, :resolve
+      post "/drift/resolve-all", DriftController, :resolve_all
     end
   end
 
