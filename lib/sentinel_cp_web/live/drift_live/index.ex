@@ -121,6 +121,12 @@ defmodule SentinelCpWeb.DriftLive.Index do
           <h1 class="text-xl font-bold">Drift Events</h1>
         </:filters>
         <:actions>
+          <.link navigate={export_path(@org, @project, "json")} class="btn btn-ghost btn-sm">
+            Export JSON
+          </.link>
+          <.link navigate={export_path(@org, @project, "csv")} class="btn btn-ghost btn-sm">
+            Export CSV
+          </.link>
           <form phx-change="filter" class="flex items-center gap-2">
             <select name="status" class="select select-bordered select-sm">
               <option value="" selected={@status_filter == nil}>All</option>
@@ -154,6 +160,7 @@ defmodule SentinelCpWeb.DriftLive.Index do
           <thead class="bg-base-300">
             <tr>
               <th class="text-xs uppercase">Node</th>
+              <th class="text-xs uppercase">Severity</th>
               <th class="text-xs uppercase">Expected Bundle</th>
               <th class="text-xs uppercase">Actual Bundle</th>
               <th class="text-xs uppercase">Detected</th>
@@ -163,7 +170,7 @@ defmodule SentinelCpWeb.DriftLive.Index do
             </tr>
           </thead>
           <tbody>
-            <tr :for={event <- @events}>
+            <tr :for={event <- @events} class="hover">
               <td>
                 <.link
                   navigate={node_path(@org, @project, event.node)}
@@ -172,6 +179,9 @@ defmodule SentinelCpWeb.DriftLive.Index do
                   <.resource_badge type="node" />
                   {event.node.name}
                 </.link>
+              </td>
+              <td>
+                <.severity_badge severity={event.severity} />
               </td>
               <td>
                 <.link
@@ -194,7 +204,12 @@ defmodule SentinelCpWeb.DriftLive.Index do
                 <% end %>
               </td>
               <td class="text-sm">
-                {Calendar.strftime(event.detected_at, "%Y-%m-%d %H:%M")}
+                <.link
+                  navigate={event_path(@org, @project, event)}
+                  class="hover:underline"
+                >
+                  {Calendar.strftime(event.detected_at, "%Y-%m-%d %H:%M")}
+                </.link>
               </td>
               <td>
                 <.status_badge event={event} />
@@ -202,7 +217,13 @@ defmodule SentinelCpWeb.DriftLive.Index do
               <td>
                 <.resolution_badge resolution={event.resolution} />
               </td>
-              <td>
+              <td class="flex gap-1">
+                <.link
+                  navigate={event_path(@org, @project, event)}
+                  class="btn btn-ghost btn-xs"
+                >
+                  View
+                </.link>
                 <button
                   :if={is_nil(event.resolved_at)}
                   phx-click="resolve"
@@ -236,6 +257,23 @@ defmodule SentinelCpWeb.DriftLive.Index do
     end
   end
 
+  defp severity_badge(assigns) do
+    class =
+      case assigns.severity do
+        "critical" -> "badge-error"
+        "high" -> "badge-warning"
+        "medium" -> "badge-info"
+        "low" -> "badge-ghost"
+        _ -> "badge-ghost"
+      end
+
+    assigns = assign(assigns, :class, class)
+
+    ~H"""
+    <span class={"badge badge-sm #{@class}"}>{String.capitalize(@severity || "unknown")}</span>
+    """
+  end
+
   defp resolution_badge(assigns) do
     case assigns.resolution do
       "auto_corrected" ->
@@ -250,7 +288,12 @@ defmodule SentinelCpWeb.DriftLive.Index do
 
       "rollout_started" ->
         ~H"""
-        <span class="badge badge-sm badge-primary">Rollout</span>
+        <span class="badge badge-sm badge-primary">Rollout Started</span>
+        """
+
+      "rollout_completed" ->
+        ~H"""
+        <span class="badge badge-sm badge-success">Rollout Completed</span>
         """
 
       nil ->
@@ -274,6 +317,15 @@ defmodule SentinelCpWeb.DriftLive.Index do
 
   defp bundle_path(nil, project, bundle_id),
     do: ~p"/projects/#{project.slug}/bundles/#{bundle_id}"
+
+  defp event_path(%{slug: org_slug}, project, event),
+    do: ~p"/orgs/#{org_slug}/projects/#{project.slug}/drift/#{event.id}"
+
+  defp event_path(nil, project, event),
+    do: ~p"/projects/#{project.slug}/drift/#{event.id}"
+
+  defp export_path(_org, project, format),
+    do: ~p"/api/v1/projects/#{project.slug}/drift/export?format=#{format}"
 
   defp build_path(org, project, nil), do: drift_path(org, project)
   defp build_path(org, project, ""), do: drift_path(org, project)

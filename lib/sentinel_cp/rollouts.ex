@@ -870,8 +870,28 @@ defmodule SentinelCp.Rollouts do
       |> Rollout.state_changeset("completed")
       |> Repo.update()
 
+    # Auto-resolve drift events for nodes in this rollout
+    resolve_drift_events_for_rollout(rollout)
+
     broadcast_and_notify(updated, old_state, "completed")
     {:ok, updated}
+  end
+
+  defp resolve_drift_events_for_rollout(rollout) do
+    node_ids = get_rollout_node_ids(rollout.id)
+
+    for node_id <- node_ids do
+      case Nodes.get_active_drift_event(node_id) do
+        nil ->
+          :ok
+
+        event ->
+          # Only resolve if the drift was for the bundle we just rolled out
+          if event.expected_bundle_id == rollout.bundle_id do
+            Nodes.resolve_drift_event(event, "rollout_completed")
+          end
+      end
+    end
   end
 
   ## Private — Helpers

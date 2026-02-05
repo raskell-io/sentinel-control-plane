@@ -52,7 +52,9 @@ defmodule SentinelCp.NodesFixtures do
         project_id: project.id,
         expected_bundle_id: attrs[:expected_bundle_id] || Ecto.UUID.generate(),
         actual_bundle_id: attrs[:actual_bundle_id],
-        detected_at: attrs[:detected_at] || DateTime.utc_now() |> DateTime.truncate(:second)
+        detected_at: attrs[:detected_at] || DateTime.utc_now() |> DateTime.truncate(:second),
+        severity: attrs[:severity] || "medium",
+        diff_stats: attrs[:diff_stats]
       })
 
     event

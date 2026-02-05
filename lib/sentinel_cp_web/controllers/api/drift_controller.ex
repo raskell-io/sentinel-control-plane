@@ -141,6 +141,64 @@ defmodule SentinelCpWeb.Api.DriftController do
     end
   end
 
+  @doc """
+  GET /api/v1/projects/:project_slug/drift/export
+  Exports drift events in JSON or CSV format.
+
+  Query parameters:
+  - format: "json" or "csv" (default: "json")
+  - since: ISO8601 datetime to filter events detected after this time
+  - until: ISO8601 datetime to filter events detected before this time
+  - status: "active", "resolved", or "all" (default: "all")
+  """
+  def export(conn, %{"project_slug" => project_slug} = params) do
+    with {:ok, project} <- get_project(project_slug) do
+      format = params["format"] || "json"
+      status = params["status"] || "all"
+
+      opts =
+        []
+        |> maybe_add_status_filter(status)
+        |> maybe_add_date_filter(:since, params["since"])
+        |> maybe_add_date_filter(:until, params["until"])
+
+      events =
+        project.id
+        |> Nodes.list_drift_events(opts)
+        |> filter_by_date_range(params["since"], params["until"])
+
+      case format do
+        "csv" ->
+          csv_content = events_to_csv(events)
+
+          conn
+          |> put_resp_content_type("text/csv")
+          |> put_resp_header(
+            "content-disposition",
+            "attachment; filename=\"drift-events-#{project.slug}-#{Date.utc_today()}.csv\""
+          )
+          |> send_resp(200, csv_content)
+
+        _ ->
+          conn
+          |> put_resp_content_type("application/json")
+          |> put_resp_header(
+            "content-disposition",
+            "attachment; filename=\"drift-events-#{project.slug}-#{Date.utc_today()}.json\""
+          )
+          |> json(%{
+            exported_at: DateTime.utc_now() |> DateTime.to_iso8601(),
+            project: %{id: project.id, name: project.name, slug: project.slug},
+            total: length(events),
+            drift_events: Enum.map(events, &drift_event_to_export_json/1)
+          })
+      end
+    else
+      {:error, :project_not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "Project not found"})
+    end
+  end
+
   # Helpers
 
   defp get_project(slug) do
@@ -180,12 +238,134 @@ defmodule SentinelCpWeb.Api.DriftController do
       project_id: event.project_id,
       expected_bundle_id: event.expected_bundle_id,
       actual_bundle_id: event.actual_bundle_id,
+      severity: event.severity,
       detected_at: event.detected_at,
       resolved_at: event.resolved_at,
       resolution: event.resolution,
       inserted_at: event.inserted_at,
       updated_at: event.updated_at
     }
+  end
+
+  defp drift_event_to_export_json(event) do
+    node = event.node
+
+    %{
+      id: event.id,
+      node_id: event.node_id,
+      node_name: node && node.name,
+      node_hostname: node && node.hostname,
+      project_id: event.project_id,
+      expected_bundle_id: event.expected_bundle_id,
+      actual_bundle_id: event.actual_bundle_id,
+      severity: event.severity,
+      diff_stats: event.diff_stats,
+      detected_at: event.detected_at && DateTime.to_iso8601(event.detected_at),
+      resolved_at: event.resolved_at && DateTime.to_iso8601(event.resolved_at),
+      resolution: event.resolution,
+      duration_seconds: calculate_duration(event),
+      inserted_at: event.inserted_at && DateTime.to_iso8601(event.inserted_at)
+    }
+  end
+
+  defp events_to_csv(events) do
+    headers = [
+      "id",
+      "node_id",
+      "node_name",
+      "node_hostname",
+      "severity",
+      "expected_bundle_id",
+      "actual_bundle_id",
+      "detected_at",
+      "resolved_at",
+      "resolution",
+      "duration_seconds"
+    ]
+
+    rows =
+      Enum.map(events, fn event ->
+        node = event.node
+
+        [
+          event.id,
+          event.node_id,
+          node && node.name,
+          node && node.hostname,
+          event.severity,
+          event.expected_bundle_id,
+          event.actual_bundle_id,
+          event.detected_at && DateTime.to_iso8601(event.detected_at),
+          event.resolved_at && DateTime.to_iso8601(event.resolved_at),
+          event.resolution,
+          calculate_duration(event)
+        ]
+      end)
+
+    [headers | rows]
+    |> Enum.map(&csv_row/1)
+    |> Enum.join("\n")
+  end
+
+  defp csv_row(cells) do
+    cells
+    |> Enum.map(&csv_escape/1)
+    |> Enum.join(",")
+  end
+
+  defp csv_escape(nil), do: ""
+  defp csv_escape(val) when is_binary(val) do
+    if String.contains?(val, [",", "\"", "\n"]) do
+      "\"#{String.replace(val, "\"", "\"\"")}\""
+    else
+      val
+    end
+  end
+  defp csv_escape(val), do: to_string(val)
+
+  defp calculate_duration(%{detected_at: detected, resolved_at: resolved})
+       when not is_nil(detected) and not is_nil(resolved) do
+    DateTime.diff(resolved, detected)
+  end
+  defp calculate_duration(_), do: nil
+
+  defp maybe_add_date_filter(opts, _key, nil), do: opts
+  defp maybe_add_date_filter(opts, _key, ""), do: opts
+  defp maybe_add_date_filter(opts, key, value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, dt, _} -> [{key, dt} | opts]
+      _ -> opts
+    end
+  end
+
+  defp filter_by_date_range(events, since, until_dt) do
+    events
+    |> filter_since(since)
+    |> filter_until(until_dt)
+  end
+
+  defp filter_since(events, nil), do: events
+  defp filter_since(events, ""), do: events
+  defp filter_since(events, since) do
+    case DateTime.from_iso8601(since) do
+      {:ok, dt, _} ->
+        Enum.filter(events, fn e ->
+          DateTime.compare(e.detected_at, dt) in [:gt, :eq]
+        end)
+      _ -> events
+    end
+  end
+
+  defp filter_until(events, nil), do: events
+  defp filter_until(events, ""), do: events
+  defp filter_until(events, until_dt) do
+    case DateTime.from_iso8601(until_dt) do
+      {:ok, dt, _} ->
+        Enum.filter(events, fn e ->
+          DateTime.compare(e.detected_at, dt) in [:lt, :eq]
+        end)
+      _ -> events
+    end
   end
 
   defp format_errors(changeset) do

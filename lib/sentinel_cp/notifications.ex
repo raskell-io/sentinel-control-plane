@@ -136,6 +136,37 @@ defmodule SentinelCp.Notifications do
     end
   end
 
+  @doc """
+  Sends a notification when drift threshold is exceeded for a project.
+  """
+  def notify_drift_threshold_exceeded(%Project{} = project, drift_stats) do
+    if Project.notifications_enabled?(project) do
+      payload = %{
+        event: "project.drift_threshold_exceeded",
+        timestamp: DateTime.utc_now() |> DateTime.to_iso8601(),
+        project: project_info(project),
+        drift_stats: %{
+          total_managed: drift_stats.total_managed,
+          drifted: drift_stats.drifted,
+          in_sync: drift_stats.in_sync,
+          percentage: if(drift_stats.total_managed > 0,
+            do: Float.round(drift_stats.drifted / drift_stats.total_managed * 100, 2),
+            else: 0.0
+          )
+        },
+        threshold: %{
+          percentage: Project.drift_alert_threshold(project),
+          node_count: Project.drift_alert_node_count(project)
+        }
+      }
+
+      webhook_url = Project.notification_webhook(project)
+      send_webhook(webhook_url, payload)
+    else
+      :ok
+    end
+  end
+
   defp build_rollout_payload(rollout, project, old_state, new_state) do
     event =
       case new_state do

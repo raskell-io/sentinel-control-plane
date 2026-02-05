@@ -120,4 +120,30 @@ defmodule SentinelCp.Projects.Project do
   def drift_auto_remediation?(%__MODULE__{settings: settings}) do
     Map.get(settings || %{}, "drift_auto_remediation", false)
   end
+
+  @doc """
+  Returns the drift check interval in seconds for this project.
+  Defaults to 30 seconds.
+  """
+  def drift_check_interval(%__MODULE__{settings: settings}) do
+    Map.get(settings || %{}, "drift_check_interval", 30)
+  end
+
+  @doc """
+  Returns the drift alert threshold as a percentage (0-100).
+  When the percentage of drifted nodes exceeds this threshold, an alert is sent.
+  Returns nil if not configured (no alerting).
+  """
+  def drift_alert_threshold(%__MODULE__{settings: settings}) do
+    Map.get(settings || %{}, "drift_alert_threshold")
+  end
+
+  @doc """
+  Returns the drift alert node count threshold.
+  When the number of drifted nodes exceeds this count, an alert is sent.
+  Returns nil if not configured (no alerting).
+  """
+  def drift_alert_node_count(%__MODULE__{settings: settings}) do
+    Map.get(settings || %{}, "drift_alert_node_count")
+  end
 end

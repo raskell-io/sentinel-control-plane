@@ -111,6 +111,7 @@ defmodule SentinelCpWeb.Router do
     live "/projects/:project_slug/rollouts/templates", RolloutTemplatesLive.Index, :index
     live "/projects/:project_slug/rollouts/:id", RolloutsLive.Show, :show
     live "/projects/:project_slug/drift", DriftLive.Index, :index
+    live "/projects/:project_slug/drift/:id", DriftLive.Show, :show
 
     # Org-scoped dashboard
     live "/orgs/:org_slug/dashboard", DashboardLive.Index, :index
@@ -127,6 +128,7 @@ defmodule SentinelCpWeb.Router do
     live "/orgs/:org_slug/projects/:project_slug/rollouts/templates", RolloutTemplatesLive.Index, :index
     live "/orgs/:org_slug/projects/:project_slug/rollouts/:id", RolloutsLive.Show, :show
     live "/orgs/:org_slug/projects/:project_slug/drift", DriftLive.Index, :index
+    live "/orgs/:org_slug/projects/:project_slug/drift/:id", DriftLive.Show, :show
   end
 
   # Admin-only browser routes
@@ -174,6 +176,7 @@ defmodule SentinelCpWeb.Router do
       # Drift events (read)
       get "/drift", DriftController, :index
       get "/drift/stats", DriftController, :stats
+      get "/drift/export", DriftController, :export
       get "/drift/:id", DriftController, :show
     end
   end

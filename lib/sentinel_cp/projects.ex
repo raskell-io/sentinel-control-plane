@@ -77,4 +77,16 @@ defmodule SentinelCp.Projects do
   def change_project(%Project{} = project, attrs \\ %{}) do
     Project.create_changeset(project, attrs)
   end
+
+  @doc """
+  Lists all projects that have drift alert thresholds configured.
+  """
+  def list_projects_with_drift_alerts do
+    from(p in Project)
+    |> Repo.all()
+    |> Enum.filter(fn project ->
+      Project.drift_alert_threshold(project) != nil ||
+        Project.drift_alert_node_count(project) != nil
+    end)
+  end
 end
