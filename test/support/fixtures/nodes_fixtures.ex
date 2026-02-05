@@ -38,4 +38,23 @@ defmodule SentinelCp.NodesFixtures do
     # node_key is a virtual field, available only right after registration
     {node, node.node_key}
   end
+
+  @doc """
+  Creates a drift event for testing.
+  """
+  def drift_event_fixture(attrs \\ %{}) do
+    node = attrs[:node] || node_fixture()
+    project = attrs[:project] || SentinelCp.ProjectsFixtures.project_fixture()
+
+    {:ok, event} =
+      SentinelCp.Nodes.create_drift_event(%{
+        node_id: node.id,
+        project_id: project.id,
+        expected_bundle_id: attrs[:expected_bundle_id] || Ecto.UUID.generate(),
+        actual_bundle_id: attrs[:actual_bundle_id],
+        detected_at: attrs[:detected_at] || DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+    event
+  end
 end

@@ -401,6 +401,16 @@ defmodule SentinelCp.Nodes do
   ## Drift Events
 
   @doc """
+  Gets a drift event by ID.
+  """
+  def get_drift_event(id), do: Repo.get(DriftEvent, id)
+
+  @doc """
+  Gets a drift event by ID, raises if not found.
+  """
+  def get_drift_event!(id), do: Repo.get!(DriftEvent, id)
+
+  @doc """
   Creates a drift event.
   """
   def create_drift_event(attrs) do

@@ -15,6 +15,9 @@ defmodule SentinelCpWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
 
+  attr :current_user, :map, default: nil, doc: "the current logged in user"
+  attr :current_uri, :string, default: "", doc: "the current URI path"
+
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -140,6 +143,13 @@ defmodule SentinelCpWeb.Layouts do
           label="Rollouts"
           current={@path}
           match="/rollouts"
+        />
+        <.sidebar_link
+          path={~p"/orgs/#{@org_slug}/projects/#{@project_slug}/drift"}
+          icon="hero-exclamation-triangle"
+          label="Drift"
+          current={@path}
+          match="/drift"
         />
       </div>
 
