@@ -114,6 +114,7 @@ defmodule SentinelCpWeb.Router do
     live "/projects/:project_slug/drift/:id", DriftLive.Show, :show
     live "/projects/:project_slug/node-groups", NodeGroupsLive.Index, :index
     live "/projects/:project_slug/health-checks", HealthChecksLive.Index, :index
+    live "/projects/:project_slug/environments", EnvironmentsLive.Index, :index
 
     # Org-scoped dashboard
     live "/orgs/:org_slug/dashboard", DashboardLive.Index, :index
@@ -133,6 +134,7 @@ defmodule SentinelCpWeb.Router do
     live "/orgs/:org_slug/projects/:project_slug/drift/:id", DriftLive.Show, :show
     live "/orgs/:org_slug/projects/:project_slug/node-groups", NodeGroupsLive.Index, :index
     live "/orgs/:org_slug/projects/:project_slug/health-checks", HealthChecksLive.Index, :index
+    live "/orgs/:org_slug/projects/:project_slug/environments", EnvironmentsLive.Index, :index
   end
 
   # Admin-only browser routes

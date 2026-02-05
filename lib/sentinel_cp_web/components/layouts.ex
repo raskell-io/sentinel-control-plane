@@ -167,6 +167,13 @@ defmodule SentinelCpWeb.Layouts do
           current={@path}
           match="/health-checks"
         />
+        <.sidebar_link
+          path={~p"/orgs/#{@org_slug}/projects/#{@project_slug}/environments"}
+          icon="hero-globe-alt"
+          label="Environments"
+          current={@path}
+          match="/environments"
+        />
       </div>
 
       <div :if={@has_org}>

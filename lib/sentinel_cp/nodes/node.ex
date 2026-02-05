@@ -37,6 +37,7 @@ defmodule SentinelCp.Nodes.Node do
     field :max_bundle_version, :string
 
     belongs_to :project, SentinelCp.Projects.Project
+    belongs_to :environment, SentinelCp.Projects.Environment
     has_many :heartbeats, SentinelCp.Nodes.NodeHeartbeat
     has_many :events, SentinelCp.Nodes.NodeEvent
     has_one :runtime_config, SentinelCp.Nodes.NodeRuntimeConfig
@@ -63,7 +64,8 @@ defmodule SentinelCp.Nodes.Node do
       :ip,
       :hostname,
       :metadata,
-      :project_id
+      :project_id,
+      :environment_id
     ])
     |> validate_required([:name, :project_id])
     |> validate_length(:name, min: 1, max: 100)

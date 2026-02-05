@@ -176,7 +176,8 @@ defmodule SentinelCp.Bundles do
 
   ## Config Validation Rules
 
-  alias SentinelCp.Bundles.{ConfigValidationRule, ConfigValidator}
+  alias SentinelCp.Bundles.{BundlePromotion, ConfigValidationRule, ConfigValidator}
+  alias SentinelCp.Projects.Environment
 
   @doc """
   Lists all config validation rules for a project.
@@ -243,5 +244,106 @@ defmodule SentinelCp.Bundles do
   def validate_config(project_id, config_source) when is_binary(config_source) do
     rules = list_validation_rules(project_id)
     ConfigValidator.validate(config_source, rules)
+  end
+
+  ## Bundle Promotions
+
+  @doc """
+  Lists all promotions for a bundle.
+  """
+  def list_bundle_promotions(bundle_id) do
+    from(p in BundlePromotion,
+      where: p.bundle_id == ^bundle_id,
+      preload: [:environment],
+      order_by: [asc: p.promoted_at]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Checks if a bundle has been promoted to an environment.
+  """
+  def bundle_promoted_to?(bundle_id, environment_id) do
+    from(p in BundlePromotion,
+      where: p.bundle_id == ^bundle_id and p.environment_id == ^environment_id
+    )
+    |> Repo.exists?()
+  end
+
+  @doc """
+  Promotes a bundle to an environment.
+
+  Returns `{:ok, promotion}` or `{:error, reason}`.
+  """
+  def promote_bundle(bundle_id, environment_id, opts \\ []) do
+    promoted_by_id = Keyword.get(opts, :promoted_by_id)
+
+    attrs = %{
+      bundle_id: bundle_id,
+      environment_id: environment_id,
+      promoted_by_id: promoted_by_id
+    }
+
+    %BundlePromotion{}
+    |> BundlePromotion.create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Promotes a bundle to the next environment in the pipeline.
+
+  Validates that the bundle is already promoted to the current environment.
+  Returns `{:ok, promotion}` or `{:error, reason}`.
+  """
+  def promote_bundle_to_next(%Bundle{} = bundle, %Environment{} = current_env, opts \\ []) do
+    alias SentinelCp.Projects
+
+    with {:ok, _} <- validate_promotion_from(bundle, current_env),
+         next_env when not is_nil(next_env) <- Projects.get_next_environment(current_env) do
+      promote_bundle(bundle.id, next_env.id, opts)
+    else
+      nil -> {:error, :no_next_environment}
+      error -> error
+    end
+  end
+
+  defp validate_promotion_from(bundle, environment) do
+    if bundle_promoted_to?(bundle.id, environment.id) do
+      {:ok, :valid}
+    else
+      {:error, :not_promoted_to_current_environment}
+    end
+  end
+
+  @doc """
+  Lists bundles promoted to a specific environment.
+  """
+  def list_bundles_for_environment(environment_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+
+    from(b in Bundle,
+      join: p in BundlePromotion,
+      on: p.bundle_id == b.id,
+      where: p.environment_id == ^environment_id,
+      where: b.status == "compiled",
+      order_by: [desc: p.promoted_at],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets the latest bundle promoted to an environment.
+  """
+  def get_latest_promoted_bundle(environment_id) do
+    from(b in Bundle,
+      join: p in BundlePromotion,
+      on: p.bundle_id == b.id,
+      where: p.environment_id == ^environment_id,
+      where: b.status == "compiled",
+      order_by: [desc: p.promoted_at],
+      limit: 1
+    )
+    |> Repo.one()
   end
 end

@@ -32,6 +32,8 @@ defmodule SentinelCp.Nodes do
       Enum.reduce(opts, query, fn
         {:status, status}, q -> where(q, [n], n.status == ^status)
         {:labels, labels}, q -> filter_by_labels(q, labels)
+        {:environment_id, nil}, q -> where(q, [n], is_nil(n.environment_id))
+        {:environment_id, env_id}, q -> where(q, [n], n.environment_id == ^env_id)
         _, q -> q
       end)
 
@@ -781,6 +783,34 @@ defmodule SentinelCp.Nodes do
       order_by: [asc: n.name]
     )
     |> Repo.all()
+  end
+
+  ## Environment Assignment
+
+  @doc """
+  Assigns a node to an environment.
+  """
+  def assign_node_to_environment(node_id, environment_id) do
+    node = get_node!(node_id)
+
+    node
+    |> Ecto.Changeset.change(%{environment_id: environment_id})
+    |> Repo.update()
+  end
+
+  @doc """
+  Removes a node from its environment.
+  """
+  def remove_node_from_environment(node_id) do
+    assign_node_to_environment(node_id, nil)
+  end
+
+  @doc """
+  Assigns multiple nodes to an environment.
+  """
+  def assign_nodes_to_environment(node_ids, environment_id) when is_list(node_ids) do
+    from(n in Node, where: n.id in ^node_ids)
+    |> Repo.update_all(set: [environment_id: environment_id])
   end
 
   ## Version Pinning

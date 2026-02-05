@@ -42,6 +42,7 @@ defmodule SentinelCp.Rollouts.Rollout do
 
     belongs_to :project, SentinelCp.Projects.Project
     belongs_to :bundle, SentinelCp.Bundles.Bundle
+    belongs_to :environment, SentinelCp.Projects.Environment
     has_many :steps, SentinelCp.Rollouts.RolloutStep
     has_many :node_bundle_statuses, SentinelCp.Rollouts.NodeBundleStatus
     has_many :approvals, SentinelCp.Rollouts.RolloutApproval
@@ -54,6 +55,7 @@ defmodule SentinelCp.Rollouts.Rollout do
     |> cast(attrs, [
       :project_id,
       :bundle_id,
+      :environment_id,
       :target_selector,
       :strategy,
       :batch_size,

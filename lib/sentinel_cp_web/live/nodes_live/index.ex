@@ -23,6 +23,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
         nodes = Nodes.list_nodes(project.id)
         stats = Nodes.get_node_stats(project.id)
         drift_stats = Nodes.get_drift_stats(project.id)
+        environments = Projects.list_environments(project.id)
 
         {:ok,
          socket
@@ -31,7 +32,9 @@ defmodule SentinelCpWeb.NodesLive.Index do
          |> assign(:nodes, nodes)
          |> assign(:stats, stats)
          |> assign(:drift_stats, drift_stats)
+         |> assign(:environments, environments)
          |> assign(:status_filter, nil)
+         |> assign(:environment_filter, nil)
          |> assign(:show_form, false)
          |> assign(:created_node_key, nil)
          |> assign(:page_title, "Nodes - #{project.name}")}
@@ -44,7 +47,8 @@ defmodule SentinelCpWeb.NodesLive.Index do
   @impl true
   def handle_params(params, _url, socket) do
     status_filter = params["status"]
-    {:noreply, apply_filter(socket, status_filter)}
+    environment_filter = params["environment"]
+    {:noreply, apply_filters(socket, status_filter, environment_filter)}
   end
 
   @impl true
@@ -84,7 +88,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
           project_id: project.id
         )
 
-        nodes = filter_nodes(project.id, socket.assigns.status_filter)
+        nodes = filter_nodes(project.id, socket.assigns.status_filter, socket.assigns.environment_filter)
         stats = Nodes.get_node_stats(project.id)
         drift_stats = Nodes.get_drift_stats(project.id)
 
@@ -107,13 +111,43 @@ defmodule SentinelCpWeb.NodesLive.Index do
     end
   end
 
-  def handle_event("filter", %{"status" => status}, socket) do
+  def handle_event("filter_status", %{"status" => status}, socket) do
     status = if status == "", do: nil, else: status
+    query = build_filter_query(status, socket.assigns.environment_filter)
+
+    {:noreply, push_patch(socket, to: node_path(socket.assigns.org, socket.assigns.project, query))}
+  end
+
+  def handle_event("filter_environment", %{"environment" => environment}, socket) do
+    environment = if environment == "", do: nil, else: environment
+    query = build_filter_query(socket.assigns.status_filter, environment)
+
+    {:noreply, push_patch(socket, to: node_path(socket.assigns.org, socket.assigns.project, query))}
+  end
+
+  def handle_event("filter", params, socket) do
+    status = if params["status"] == "", do: nil, else: params["status"]
+    environment = if params["environment"] == "", do: nil, else: params["environment"]
+
+    query = [status: status, environment: environment] |> Enum.reject(fn {_, v} -> is_nil(v) end)
 
     {:noreply,
      push_patch(socket,
-       to: node_path(socket.assigns.org, socket.assigns.project, status: status)
+       to: node_path(socket.assigns.org, socket.assigns.project, query)
      )}
+  end
+
+  def handle_event("assign_environment", %{"node-id" => node_id, "environment-id" => env_id}, socket) do
+    env_id = if env_id == "", do: nil, else: env_id
+
+    case Nodes.assign_node_to_environment(node_id, env_id) do
+      {:ok, _node} ->
+        nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter, socket.assigns.environment_filter)
+        {:noreply, socket |> assign(:nodes, nodes) |> put_flash(:info, "Node environment updated.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to update node environment.")}
+    end
   end
 
   def handle_event("delete", %{"id" => node_id}, socket) do
@@ -121,7 +155,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
     case Nodes.delete_node(node) do
       {:ok, _} ->
-        nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter)
+        nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter, socket.assigns.environment_filter)
         {:noreply, socket |> assign(:nodes, nodes) |> put_flash(:info, "Node deleted")}
 
       {:error, _} ->
@@ -131,7 +165,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
   @impl true
   def handle_info(:refresh, socket) do
-    nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter)
+    nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter, socket.assigns.environment_filter)
     stats = Nodes.get_node_stats(socket.assigns.project.id)
     drift_stats = Nodes.get_drift_stats(socket.assigns.project.id)
     {:noreply, assign(socket, nodes: nodes, stats: stats, drift_stats: drift_stats)}
@@ -139,19 +173,49 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
   @impl true
   def handle_info({:node_updated, _node}, socket) do
-    nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter)
+    nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter, socket.assigns.environment_filter)
     stats = Nodes.get_node_stats(socket.assigns.project.id)
     drift_stats = Nodes.get_drift_stats(socket.assigns.project.id)
     {:noreply, assign(socket, nodes: nodes, stats: stats, drift_stats: drift_stats)}
   end
 
-  defp apply_filter(socket, status_filter) do
-    nodes = filter_nodes(socket.assigns.project.id, status_filter)
-    assign(socket, nodes: nodes, status_filter: status_filter)
+  defp apply_filters(socket, status_filter, environment_filter) do
+    # Resolve environment slug to ID
+    env_id = resolve_environment_id(socket.assigns.environments, environment_filter)
+    nodes = filter_nodes(socket.assigns.project.id, status_filter, env_id)
+    assign(socket, nodes: nodes, status_filter: status_filter, environment_filter: environment_filter)
   end
 
-  defp filter_nodes(project_id, nil), do: Nodes.list_nodes(project_id)
-  defp filter_nodes(project_id, status), do: Nodes.list_nodes(project_id, status: status)
+  defp resolve_environment_id(_environments, nil), do: nil
+  defp resolve_environment_id(_environments, "unassigned"), do: :unassigned
+  defp resolve_environment_id(environments, slug) do
+    case Enum.find(environments, fn e -> e.slug == slug end) do
+      nil -> nil
+      env -> env.id
+    end
+  end
+
+  defp filter_nodes(project_id, status, environment_id) do
+    opts = []
+    opts = if status, do: [{:status, status} | opts], else: opts
+    opts = case environment_id do
+      nil -> opts
+      :unassigned -> [{:environment_id, nil} | opts]
+      id -> [{:environment_id, id} | opts]
+    end
+
+    if opts == [] do
+      Nodes.list_nodes(project_id)
+    else
+      Nodes.list_nodes(project_id, opts)
+    end
+  end
+
+  defp build_filter_query(status, environment) do
+    []
+    |> then(fn q -> if status, do: [{:status, status} | q], else: q end)
+    |> then(fn q -> if environment, do: [{:environment, environment} | q], else: q end)
+  end
 
   @impl true
   def render(assigns) do
@@ -182,14 +246,29 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
       <.table_toolbar>
         <:filters>
-          <form phx-change="filter" class="flex gap-2">
-            <select name="status" class="select select-bordered select-sm">
-              <option value="">All statuses</option>
-              <option value="online" selected={@status_filter == "online"}>Online</option>
-              <option value="offline" selected={@status_filter == "offline"}>Offline</option>
-              <option value="unknown" selected={@status_filter == "unknown"}>Unknown</option>
-            </select>
-          </form>
+          <div class="flex gap-2">
+            <form phx-change="filter_status">
+              <select name="status" class="select select-bordered select-sm">
+                <option value="">All statuses</option>
+                <option value="online" selected={@status_filter == "online"}>Online</option>
+                <option value="offline" selected={@status_filter == "offline"}>Offline</option>
+                <option value="unknown" selected={@status_filter == "unknown"}>Unknown</option>
+              </select>
+            </form>
+            <form :if={@environments != []} phx-change="filter_environment">
+              <select name="environment" class="select select-bordered select-sm">
+                <option value="">All environments</option>
+                <option value="unassigned" selected={@environment_filter == "unassigned"}>Unassigned</option>
+                <option
+                  :for={env <- @environments}
+                  value={env.slug}
+                  selected={@environment_filter == env.slug}
+                >
+                  {env.name}
+                </option>
+              </select>
+            </form>
+          </div>
         </:filters>
         <:actions>
           <button class="btn btn-primary btn-sm" phx-click="toggle_form">
@@ -252,6 +331,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
             <tr>
               <th class="text-xs uppercase">Name</th>
               <th class="text-xs uppercase">Status</th>
+              <th :if={@environments != []} class="text-xs uppercase">Environment</th>
               <th class="text-xs uppercase">Config</th>
               <th class="text-xs uppercase">Version</th>
               <th class="text-xs uppercase">IP</th>
@@ -272,6 +352,9 @@ defmodule SentinelCpWeb.NodesLive.Index do
                   </.link>
                 </td>
                 <td><.status_badge status={node.status} /></td>
+                <td :if={@environments != []}>
+                  <.environment_badge node={node} environments={@environments} />
+                </td>
                 <td><.config_status_badge node={node} /></td>
                 <td class="font-mono text-sm">{node.version || "-"}</td>
                 <td class="font-mono text-sm">{node.ip || "-"}</td>
@@ -336,6 +419,18 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
     ~H"""
     <span class={"badge badge-sm #{@class}"}>{@text}</span>
+    """
+  end
+
+  defp environment_badge(assigns) do
+    env = Enum.find(assigns.environments, fn e -> e.id == assigns.node.environment_id end)
+    assigns = assign(assigns, :env, env)
+
+    ~H"""
+    <span :if={@env} class="badge badge-sm" style={"background-color: #{@env.color}; color: white"}>
+      {@env.name}
+    </span>
+    <span :if={!@env} class="text-base-content/50 text-sm">-</span>
     """
   end
 
