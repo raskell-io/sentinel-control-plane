@@ -467,6 +467,66 @@ defmodule SentinelCp.Nodes do
   end
 
   @doc """
+  Returns drift event statistics for a project.
+  """
+  def get_drift_event_stats(project_id) do
+    active =
+      from(d in DriftEvent,
+        where: d.project_id == ^project_id,
+        where: is_nil(d.resolved_at)
+      )
+      |> Repo.aggregate(:count)
+
+    resolved_today =
+      from(d in DriftEvent,
+        where: d.project_id == ^project_id,
+        where: not is_nil(d.resolved_at),
+        where: d.resolved_at >= ^start_of_day()
+      )
+      |> Repo.aggregate(:count)
+
+    %{
+      active: active,
+      resolved_today: resolved_today
+    }
+  end
+
+  @doc """
+  Returns drift event statistics across multiple projects.
+  """
+  def get_fleet_drift_event_stats(project_ids) when is_list(project_ids) do
+    if project_ids == [] do
+      %{active: 0, resolved_today: 0}
+    else
+      active =
+        from(d in DriftEvent,
+          where: d.project_id in ^project_ids,
+          where: is_nil(d.resolved_at)
+        )
+        |> Repo.aggregate(:count)
+
+      resolved_today =
+        from(d in DriftEvent,
+          where: d.project_id in ^project_ids,
+          where: not is_nil(d.resolved_at),
+          where: d.resolved_at >= ^start_of_day()
+        )
+        |> Repo.aggregate(:count)
+
+      %{
+        active: active,
+        resolved_today: resolved_today
+      }
+    end
+  end
+
+  defp start_of_day do
+    DateTime.utc_now()
+    |> DateTime.to_date()
+    |> DateTime.new!(~T[00:00:00], "Etc/UTC")
+  end
+
+  @doc """
   Resolves all active drift events for a node.
   """
   def resolve_node_drift_events(node_id, resolution) do

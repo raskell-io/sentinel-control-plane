@@ -66,6 +66,13 @@ defmodule SentinelCpWeb.DashboardLive.Index do
           <.node_health_chart stats={@overview.node_stats} />
         </.k8s_section>
 
+        <.k8s_section title="Drift Health">
+          <.drift_health_chart
+            drift_stats={@overview.drift_stats}
+            event_stats={@overview.drift_event_stats}
+          />
+        </.k8s_section>
+
         <.k8s_section title="Projects">
           <table class="table table-sm">
             <thead class="bg-base-300">
@@ -171,6 +178,56 @@ defmodule SentinelCpWeb.DashboardLive.Index do
           <div class="bg-base-content/30 h-full rounded-full transition-all" style={"width: #{Float.round(@unknown / @total * 100, 1)}%"}></div>
         </div>
         <span class="text-sm font-mono w-16 text-right">{@unknown}/{@total}</span>
+      </div>
+    </div>
+    """
+  end
+
+  defp drift_health_chart(assigns) do
+    total_managed = assigns.drift_stats.total_managed
+    in_sync = assigns.drift_stats.in_sync
+    drifted = assigns.drift_stats.drifted
+    active_events = assigns.event_stats.active
+    resolved_today = assigns.event_stats.resolved_today
+
+    assigns =
+      assign(assigns,
+        total_managed: total_managed,
+        in_sync: in_sync,
+        drifted: drifted,
+        active_events: active_events,
+        resolved_today: resolved_today,
+        in_sync_pct: if(total_managed > 0, do: Float.round(in_sync / total_managed * 100, 1), else: 0),
+        drifted_pct: if(total_managed > 0, do: Float.round(drifted / total_managed * 100, 1), else: 0)
+      )
+
+    ~H"""
+    <div :if={@total_managed == 0} class="text-base-content/50 text-sm py-8 text-center">
+      No managed nodes yet.
+    </div>
+    <div :if={@total_managed > 0} class="space-y-3">
+      <div class="flex items-center gap-3">
+        <span class="w-20 text-sm">In Sync</span>
+        <div class="flex-1 bg-base-300 rounded-full h-4 overflow-hidden">
+          <div class="bg-success h-full rounded-full transition-all" style={"width: #{@in_sync_pct}%"}></div>
+        </div>
+        <span class="text-sm font-mono w-16 text-right">{@in_sync}/{@total_managed}</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="w-20 text-sm">Drifted</span>
+        <div class="flex-1 bg-base-300 rounded-full h-4 overflow-hidden">
+          <div class="bg-warning h-full rounded-full transition-all" style={"width: #{@drifted_pct}%"}></div>
+        </div>
+        <span class="text-sm font-mono w-16 text-right">{@drifted}/{@total_managed}</span>
+      </div>
+      <div class="divider my-2"></div>
+      <div class="flex justify-between text-sm">
+        <span class="text-base-content/70">Active drift events:</span>
+        <span class={["font-mono", @active_events > 0 && "text-warning font-bold"]}>{@active_events}</span>
+      </div>
+      <div class="flex justify-between text-sm">
+        <span class="text-base-content/70">Resolved today:</span>
+        <span class="font-mono">{@resolved_today}</span>
       </div>
     </div>
     """

@@ -24,6 +24,7 @@ defmodule SentinelCp.Dashboard do
       project_count: length(projects),
       node_stats: get_fleet_node_stats(project_ids),
       drift_stats: Nodes.get_fleet_drift_stats(project_ids),
+      drift_event_stats: Nodes.get_fleet_drift_event_stats(project_ids),
       active_rollouts: count_active_rollouts(project_ids),
       recent_bundles: count_recent_bundles(project_ids, 7),
       deployment_success_rate: deployment_success_rate(project_ids)
