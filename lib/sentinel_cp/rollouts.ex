@@ -359,6 +359,34 @@ defmodule SentinelCp.Rollouts do
   end
 
   @doc """
+  Lists all rollouts pending approval, with project and bundle preloaded.
+  Can optionally filter by org_id.
+  """
+  def list_pending_approvals(opts \\ []) do
+    query =
+      from(r in Rollout,
+        where: r.approval_state == "pending_approval",
+        where: r.state == "pending",
+        preload: [:project, :bundle],
+        order_by: [asc: r.inserted_at]
+      )
+
+    query =
+      case opts[:org_id] do
+        nil ->
+          query
+
+        org_id ->
+          from(r in query,
+            join: p in assoc(r, :project),
+            where: p.org_id == ^org_id
+          )
+      end
+
+    Repo.all(query)
+  end
+
+  @doc """
   Counts the number of approvals for a rollout.
   """
   def count_approvals(rollout_id) do

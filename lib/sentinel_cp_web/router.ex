@@ -146,6 +146,7 @@ defmodule SentinelCpWeb.Router do
     live "/audit", AuditLive.Index, :index
     get "/audit/export", AuditController, :export
     live "/api-keys", ApiKeysLive.Index, :index
+    live "/approvals", ApprovalsLive.Index, :index
   end
 
   # Webhook endpoints (verified by signature, not API key)

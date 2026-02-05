@@ -217,6 +217,13 @@ defmodule SentinelCpWeb.Layouts do
           current={@path}
           match="/api-keys"
         />
+        <.sidebar_link
+          path={~p"/approvals"}
+          icon="hero-check-badge"
+          label="Approvals"
+          current={@path}
+          match="/approvals"
+        />
       </div>
     </nav>
     """
