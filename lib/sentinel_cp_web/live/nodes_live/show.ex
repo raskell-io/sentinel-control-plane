@@ -32,6 +32,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
             heartbeats = Nodes.list_recent_heartbeats(node.id, limit: 20)
             events = Nodes.list_node_events(node.id)
             runtime_config = Nodes.get_runtime_config(node.id)
+            drift_events = Nodes.list_node_drift_events(node.id)
 
             {:ok,
              socket
@@ -41,6 +42,7 @@ defmodule SentinelCpWeb.NodesLive.Show do
              |> assign(:heartbeats, heartbeats)
              |> assign(:events, events)
              |> assign(:runtime_config, runtime_config)
+             |> assign(:drift_events, drift_events)
              |> assign(:active_tab, "events")
              |> assign(:show_label_form, false)
              |> assign(:page_title, "#{node.name} - #{project.name}")}
@@ -75,13 +77,15 @@ defmodule SentinelCpWeb.NodesLive.Show do
     heartbeats = Nodes.list_recent_heartbeats(node.id, limit: 20)
     events = Nodes.list_node_events(node.id)
     runtime_config = Nodes.get_runtime_config(node.id)
+    drift_events = Nodes.list_node_drift_events(node.id)
 
     {:noreply,
      assign(socket,
        node: node,
        heartbeats: heartbeats,
        events: events,
-       runtime_config: runtime_config
+       runtime_config: runtime_config,
+       drift_events: drift_events
      )}
   end
 
@@ -90,13 +94,15 @@ defmodule SentinelCpWeb.NodesLive.Show do
     heartbeats = Nodes.list_recent_heartbeats(node.id, limit: 20)
     events = Nodes.list_node_events(node.id)
     runtime_config = Nodes.get_runtime_config(node.id)
+    drift_events = Nodes.list_node_drift_events(node.id)
 
     {:noreply,
      assign(socket,
        node: node,
        heartbeats: heartbeats,
        events: events,
-       runtime_config: runtime_config
+       runtime_config: runtime_config,
+       drift_events: drift_events
      )}
   end
 
@@ -286,6 +292,14 @@ defmodule SentinelCpWeb.NodesLive.Show do
             >
               Heartbeats
             </button>
+            <button
+              phx-click="switch_tab"
+              phx-value-tab="drift"
+              class={"px-4 py-2 text-sm font-medium border-b-2 #{if @active_tab == "drift", do: "border-primary text-primary", else: "border-transparent text-base-content/50 hover:text-base-content"}"}
+            >
+              Drift History
+              <span :if={has_active_drift?(@drift_events)} class="ml-1 badge badge-warning badge-xs">!</span>
+            </button>
           </div>
         </div>
 
@@ -352,6 +366,48 @@ defmodule SentinelCpWeb.NodesLive.Show do
           </table>
           <div :if={Enum.empty?(@heartbeats)} class="p-8 text-center text-base-content/50">
             No heartbeats recorded yet.
+          </div>
+        </div>
+
+        <div :if={@active_tab == "drift"}>
+          <table class="table table-sm">
+            <thead class="bg-base-300">
+              <tr>
+                <th class="text-xs uppercase">Detected</th>
+                <th class="text-xs uppercase">Expected Bundle</th>
+                <th class="text-xs uppercase">Actual Bundle</th>
+                <th class="text-xs uppercase">Status</th>
+                <th class="text-xs uppercase">Resolution</th>
+                <th class="text-xs uppercase">Resolved At</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for event <- @drift_events do %>
+                <tr>
+                  <td class="text-sm">{format_datetime(event.detected_at)}</td>
+                  <td>
+                    <.link navigate={bundle_path(@org, @project, event.expected_bundle_id)} class="font-mono text-sm text-primary hover:underline">
+                      {String.slice(event.expected_bundle_id, 0, 8)}
+                    </.link>
+                  </td>
+                  <td>
+                    <%= if event.actual_bundle_id do %>
+                      <.link navigate={bundle_path(@org, @project, event.actual_bundle_id)} class="font-mono text-sm text-primary hover:underline">
+                        {String.slice(event.actual_bundle_id, 0, 8)}
+                      </.link>
+                    <% else %>
+                      <span class="text-base-content/50">none</span>
+                    <% end %>
+                  </td>
+                  <td><.drift_status_badge resolved={event.resolved_at != nil} /></td>
+                  <td><.drift_resolution_badge resolution={event.resolution} /></td>
+                  <td class="text-sm">{format_datetime(event.resolved_at)}</td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+          <div :if={Enum.empty?(@drift_events)} class="p-8 text-center text-base-content/50">
+            No drift events recorded for this node.
           </div>
         </div>
       </.k8s_section>
@@ -421,6 +477,46 @@ defmodule SentinelCpWeb.NodesLive.Show do
     ~H"""
     <span class={"badge badge-sm #{@class}"}>{@text}</span>
     """
+  end
+
+  defp has_active_drift?(drift_events) do
+    Enum.any?(drift_events, fn e -> is_nil(e.resolved_at) end)
+  end
+
+  defp drift_status_badge(assigns) do
+    if assigns.resolved do
+      ~H"""
+      <span class="badge badge-sm badge-success">Resolved</span>
+      """
+    else
+      ~H"""
+      <span class="badge badge-sm badge-warning">Active</span>
+      """
+    end
+  end
+
+  defp drift_resolution_badge(assigns) do
+    case assigns.resolution do
+      "auto_corrected" ->
+        ~H"""
+        <span class="badge badge-sm badge-ghost">Auto-corrected</span>
+        """
+
+      "manual" ->
+        ~H"""
+        <span class="badge badge-sm badge-info">Manual</span>
+        """
+
+      "rollout_started" ->
+        ~H"""
+        <span class="badge badge-sm badge-primary">Rollout</span>
+        """
+
+      nil ->
+        ~H"""
+        <span class="text-base-content/50">—</span>
+        """
+    end
   end
 
   defp severity_badge(assigns) do

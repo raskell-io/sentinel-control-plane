@@ -442,6 +442,20 @@ defmodule SentinelCp.Nodes do
   end
 
   @doc """
+  Lists drift events for a specific node.
+  """
+  def list_node_drift_events(node_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+
+    from(d in DriftEvent,
+      where: d.node_id == ^node_id,
+      order_by: [desc: d.detected_at],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  @doc """
   Lists drift events for a project.
   """
   def list_drift_events(project_id, opts \\ []) do
