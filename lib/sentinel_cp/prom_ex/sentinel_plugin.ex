@@ -7,6 +7,9 @@ defmodule SentinelCp.PromEx.SentinelPlugin do
   - `sentinel_cp_nodes_total` — gauge by status (online, offline)
   - `sentinel_cp_rollouts_active` — gauge of running rollouts
   - `sentinel_cp_webhook_events_total` — counter by event type
+  - `sentinel_cp_drift_events_active` — gauge of unresolved drift events
+  - `sentinel_cp_drift_nodes_drifted` — gauge of currently drifted nodes
+  - `sentinel_cp_drift_events_total` — counter by type (detected, resolved)
   """
   use PromEx.Plugin
 
@@ -31,6 +34,18 @@ defmodule SentinelCp.PromEx.SentinelPlugin do
           event_name: [:sentinel_cp, :rollouts, :active_count],
           description: "Number of currently active rollouts",
           measurement: :count
+        ),
+        last_value(
+          [:sentinel_cp, :drift, :events, :active],
+          event_name: [:sentinel_cp, :drift, :events, :active_count],
+          description: "Number of unresolved drift events",
+          measurement: :count
+        ),
+        last_value(
+          [:sentinel_cp, :drift, :nodes, :drifted],
+          event_name: [:sentinel_cp, :drift, :nodes, :drifted_count],
+          description: "Number of currently drifted nodes",
+          measurement: :count
         )
       ]
     )
@@ -54,6 +69,13 @@ defmodule SentinelCp.PromEx.SentinelPlugin do
           description: "Total webhook events received by type",
           measurement: :count,
           tags: [:event_type]
+        ),
+        counter(
+          [:sentinel_cp, :drift, :events, :total],
+          event_name: [:sentinel_cp, :drift, :event],
+          description: "Total drift events by type",
+          measurement: :count,
+          tags: [:type]
         )
       ]
     )
@@ -80,6 +102,24 @@ defmodule SentinelCp.PromEx.SentinelPlugin do
       %{count: active_rollouts},
       %{}
     )
+
+    # Active drift events
+    active_drift_events = poll_active_drift_events()
+
+    :telemetry.execute(
+      [:sentinel_cp, :drift, :events, :active_count],
+      %{count: active_drift_events},
+      %{}
+    )
+
+    # Drifted nodes
+    drifted_nodes = poll_drifted_nodes()
+
+    :telemetry.execute(
+      [:sentinel_cp, :drift, :nodes, :drifted_count],
+      %{count: drifted_nodes},
+      %{}
+    )
   end
 
   defp poll_node_count(status) do
@@ -102,5 +142,55 @@ defmodule SentinelCp.PromEx.SentinelPlugin do
     )
   rescue
     _ -> 0
+  end
+
+  defp poll_active_drift_events do
+    import Ecto.Query
+
+    SentinelCp.Repo.aggregate(
+      from(d in "drift_events", where: is_nil(d.resolved_at)),
+      :count
+    )
+  rescue
+    _ -> 0
+  end
+
+  defp poll_drifted_nodes do
+    import Ecto.Query
+
+    SentinelCp.Repo.aggregate(
+      from(n in "nodes",
+        where: n.status == "online",
+        where: not is_nil(n.expected_bundle_id),
+        where: n.active_bundle_id != n.expected_bundle_id or is_nil(n.active_bundle_id)
+      ),
+      :count
+    )
+  rescue
+    _ -> 0
+  end
+
+  @doc """
+  Emits a telemetry event for drift detection.
+  Call this when a drift event is created.
+  """
+  def emit_drift_detected do
+    :telemetry.execute(
+      [:sentinel_cp, :drift, :event],
+      %{count: 1},
+      %{type: "detected"}
+    )
+  end
+
+  @doc """
+  Emits a telemetry event for drift resolution.
+  Call this when a drift event is resolved.
+  """
+  def emit_drift_resolved(resolution) do
+    :telemetry.execute(
+      [:sentinel_cp, :drift, :event],
+      %{count: 1},
+      %{type: "resolved_#{resolution}"}
+    )
   end
 end

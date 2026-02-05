@@ -414,18 +414,38 @@ defmodule SentinelCp.Nodes do
   Creates a drift event.
   """
   def create_drift_event(attrs) do
-    %DriftEvent{}
-    |> DriftEvent.create_changeset(attrs)
-    |> Repo.insert()
+    result =
+      %DriftEvent{}
+      |> DriftEvent.create_changeset(attrs)
+      |> Repo.insert()
+
+    case result do
+      {:ok, _event} ->
+        SentinelCp.PromEx.SentinelPlugin.emit_drift_detected()
+        result
+
+      _ ->
+        result
+    end
   end
 
   @doc """
   Resolves a drift event with the given resolution.
   """
   def resolve_drift_event(%DriftEvent{} = event, resolution) do
-    event
-    |> DriftEvent.resolve_changeset(resolution)
-    |> Repo.update()
+    result =
+      event
+      |> DriftEvent.resolve_changeset(resolution)
+      |> Repo.update()
+
+    case result do
+      {:ok, _event} ->
+        SentinelCp.PromEx.SentinelPlugin.emit_drift_resolved(resolution)
+        result
+
+      _ ->
+        result
+    end
   end
 
   @doc """
