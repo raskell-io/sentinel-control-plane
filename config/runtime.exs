@@ -20,8 +20,11 @@ if System.get_env("PHX_SERVER") do
   config :sentinel_cp, SentinelCpWeb.Endpoint, server: true
 end
 
-config :sentinel_cp, SentinelCpWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+# Configure port from environment variable (skip in test to preserve test.exs config)
+if config_env() != :test do
+  config :sentinel_cp, SentinelCpWeb.Endpoint,
+    http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+end
 
 # Bundle storage (S3/MinIO)
 if s3_endpoint = System.get_env("S3_ENDPOINT") do

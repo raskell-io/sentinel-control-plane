@@ -10,12 +10,11 @@ config :sentinel_cp, SentinelCp.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
-# We don't run a server during test. If one is required,
-# you can enable the server option below.
+# Enable server for E2E tests (Wallaby requires the server to be running)
 config :sentinel_cp, SentinelCpWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "mweJf2rSnJcf9V7CCs4PuqhL5GB97+9ODEFraHiqbGuEA2AOh1jd0PWGlMIhr6Kv",
-  server: false
+  server: true
 
 # In test we don't send emails
 config :sentinel_cp, SentinelCp.Mailer, adapter: Swoosh.Adapters.Test
@@ -51,3 +50,11 @@ config :sentinel_cp, :github_webhook, secret: "test_webhook_secret"
 
 # Use mock GitHub client in tests
 config :sentinel_cp, :github_client, SentinelCp.Webhooks.GitHubClient.Mock
+
+# Wallaby E2E test configuration
+config :wallaby,
+  otp_app: :sentinel_cp,
+  driver: Wallaby.Chrome,
+  screenshot_on_failure: true,
+  screenshot_dir: "tmp/screenshots",
+  max_wait_time: 5_000

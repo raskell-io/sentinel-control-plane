@@ -1,0 +1,136 @@
+defmodule SentinelCpWeb.E2E.BundleLifecycleTest do
+  @moduledoc """
+  E2E tests for bundle management UI.
+
+  Tests bundle list, compilation status, details view, and diff view.
+  """
+  use SentinelCpWeb.FeatureCase
+
+  @moduletag :e2e
+
+  import Wallaby.Query
+
+  describe "bundles list page" do
+    feature "shows empty state when no bundles", %{session: session} do
+      {session, context} = setup_full_context(session)
+
+      session
+      |> visit("/projects/#{context.project.slug}/bundles")
+      |> assert_has(css("h1", text: "Bundles"))
+    end
+
+    feature "displays bundles when they exist", %{session: session} do
+      {session, context} = setup_full_context(session)
+
+      SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+        project: context.project,
+        version: "v1.0.0"
+      })
+
+      SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+        project: context.project,
+        version: "v1.1.0"
+      })
+
+      session
+      |> visit("/projects/#{context.project.slug}/bundles")
+      |> assert_has(css("table"))
+      |> assert_has(css("td", text: "v1.0.0"))
+      |> assert_has(css("td", text: "v1.1.0"))
+    end
+
+    feature "shows compilation status badges", %{session: session} do
+      {session, context} = setup_full_context(session)
+
+      SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+        project: context.project,
+        version: "v2.0.0"
+      })
+
+      session
+      |> visit("/projects/#{context.project.slug}/bundles")
+      |> assert_has(css("[data-testid='status-badge']", text: "compiled"))
+    end
+  end
+
+  describe "bundle details" do
+    feature "view bundle details page", %{session: session} do
+      {session, context} = setup_full_context(session)
+
+      bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+        project: context.project,
+        version: "v3.0.0"
+      })
+
+      session
+      |> visit("/projects/#{context.project.slug}/bundles/#{bundle.id}")
+      |> assert_has(css("h1", text: "v3.0.0"))
+      |> assert_has(css("[data-testid='bundle-status']", text: "compiled"))
+    end
+
+    feature "bundle details shows metadata", %{session: session} do
+      {session, context} = setup_full_context(session)
+
+      bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+        project: context.project,
+        version: "v4.0.0"
+      })
+
+      session
+      |> visit("/projects/#{context.project.slug}/bundles/#{bundle.id}")
+      |> assert_has(css("[data-testid='bundle-version']", text: "v4.0.0"))
+    end
+  end
+
+  describe "bundle creation" do
+    feature "navigate to new bundle form", %{session: session} do
+      {session, context} = setup_full_context(session)
+
+      session
+      |> visit("/projects/#{context.project.slug}/bundles/new")
+      |> assert_has(css("h1", text: "New Bundle"))
+      |> assert_has(css("form"))
+      |> assert_has(css("input[name='version']"))
+      |> assert_has(css("textarea[name='config_source']"))
+    end
+  end
+
+  describe "bundle diff view" do
+    feature "compare two bundles", %{session: session} do
+      {session, context} = setup_full_context(session)
+
+      bundle1 = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+        project: context.project,
+        version: "v5.0.0",
+        config_source: "system { workers 4 }"
+      })
+
+      bundle2 = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+        project: context.project,
+        version: "v5.1.0",
+        config_source: "system { workers 8 }"
+      })
+
+      session
+      |> visit("/projects/#{context.project.slug}/bundles/diff?from=#{bundle1.id}&to=#{bundle2.id}")
+      |> assert_has(css("h1", text: "Bundle Diff"))
+      |> assert_has(css("[data-testid='diff-from']", text: "v5.0.0"))
+      |> assert_has(css("[data-testid='diff-to']", text: "v5.1.0"))
+    end
+  end
+
+  describe "bundle list filtering" do
+    feature "filter bundles by status", %{session: session} do
+      {session, context} = setup_full_context(session)
+
+      SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+        project: context.project,
+        version: "v6.0.0"
+      })
+
+      session
+      |> visit("/projects/#{context.project.slug}/bundles")
+      |> assert_has(css("td", text: "v6.0.0"))
+    end
+  end
+end

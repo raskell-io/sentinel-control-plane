@@ -26,7 +26,13 @@ defmodule SentinelCp.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test]
+      preferred_envs: [
+        precommit: :test,
+        "test.unit": :test,
+        "test.integration": :test,
+        "test.e2e": :test,
+        "test.all": :test
+      ]
     ]
   end
 
@@ -92,7 +98,8 @@ defmodule SentinelCp.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_machina, "~> 2.8", only: :test},
-      {:mox, "~> 1.2", only: :test}
+      {:mox, "~> 1.2", only: :test},
+      {:wallaby, "~> 0.30", only: :test, runtime: false}
     ]
   end
 
@@ -108,6 +115,10 @@ defmodule SentinelCp.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      "test.unit": ["ecto.create --quiet", "ecto.migrate --quiet", "test --exclude e2e --exclude integration"],
+      "test.integration": ["ecto.create --quiet", "ecto.migrate --quiet", "test --only integration"],
+      "test.e2e": ["ecto.create --quiet", "ecto.migrate --quiet", "test --only e2e"],
+      "test.all": ["ecto.create --quiet", "ecto.migrate --quiet", "test --include e2e --include integration"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind sentinel_cp", "esbuild sentinel_cp"],
       "assets.deploy": [

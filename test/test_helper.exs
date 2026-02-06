@@ -2,7 +2,19 @@ Mox.defmock(SentinelCp.Webhooks.GitHubClient.Mock,
   for: SentinelCp.Webhooks.GitHubClient
 )
 
-ExUnit.start()
+# Start Wallaby only if running E2E tests and ChromeDriver is available
+# E2E tests require ChromeDriver to be installed
+if System.get_env("WALLABY_DRIVER") != "disabled" do
+  case System.cmd("which", ["chromedriver"], stderr_to_stdout: true) do
+    {_, 0} ->
+      {:ok, _} = Application.ensure_all_started(:wallaby)
+    _ ->
+      IO.puts("ChromeDriver not found - E2E tests will be skipped")
+  end
+end
+
+# Exclude e2e and integration tests by default (run with --include e2e or --include integration)
+ExUnit.start(exclude: [:e2e, :integration])
 
 # For SQLite, the sandbox mode works but without async support
 # Check if the pool is configured as Sandbox, otherwise skip
