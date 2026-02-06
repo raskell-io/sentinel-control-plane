@@ -7,6 +7,11 @@
 # General application configuration
 import Config
 
+# Register .kdl MIME type for file uploads
+config :mime, :types, %{
+  "text/plain" => ["kdl"]
+}
+
 config :sentinel_cp,
   ecto_repos: [SentinelCp.Repo],
   generators: [timestamp_type: :utc_datetime],
