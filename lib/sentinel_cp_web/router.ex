@@ -124,6 +124,10 @@ defmodule SentinelCpWeb.Router do
     live "/projects/:project_slug/environments", EnvironmentsLive.Index, :index
     live "/projects/:project_slug/validation-rules", ValidationRulesLive.Index, :index
     live "/projects/:project_slug/webhooks", WebhooksLive.Index, :index
+    live "/projects/:project_slug/services", ServicesLive.Index, :index
+    live "/projects/:project_slug/services/new", ServicesLive.New, :new
+    live "/projects/:project_slug/services/:id", ServicesLive.Show, :show
+    live "/projects/:project_slug/services/:id/edit", ServicesLive.Edit, :edit
 
     # Org-scoped dashboard
     live "/orgs/:org_slug/dashboard", DashboardLive.Index, :index
@@ -137,15 +141,27 @@ defmodule SentinelCpWeb.Router do
     live "/orgs/:org_slug/projects/:project_slug/bundles/diff", BundlesLive.Diff, :diff
     live "/orgs/:org_slug/projects/:project_slug/bundles/:id", BundlesLive.Show, :show
     live "/orgs/:org_slug/projects/:project_slug/rollouts", RolloutsLive.Index, :index
-    live "/orgs/:org_slug/projects/:project_slug/rollouts/templates", RolloutTemplatesLive.Index, :index
+
+    live "/orgs/:org_slug/projects/:project_slug/rollouts/templates",
+         RolloutTemplatesLive.Index,
+         :index
+
     live "/orgs/:org_slug/projects/:project_slug/rollouts/:id", RolloutsLive.Show, :show
     live "/orgs/:org_slug/projects/:project_slug/drift", DriftLive.Index, :index
     live "/orgs/:org_slug/projects/:project_slug/drift/:id", DriftLive.Show, :show
     live "/orgs/:org_slug/projects/:project_slug/node-groups", NodeGroupsLive.Index, :index
     live "/orgs/:org_slug/projects/:project_slug/health-checks", HealthChecksLive.Index, :index
     live "/orgs/:org_slug/projects/:project_slug/environments", EnvironmentsLive.Index, :index
-    live "/orgs/:org_slug/projects/:project_slug/validation-rules", ValidationRulesLive.Index, :index
+
+    live "/orgs/:org_slug/projects/:project_slug/validation-rules",
+         ValidationRulesLive.Index,
+         :index
+
     live "/orgs/:org_slug/projects/:project_slug/webhooks", WebhooksLive.Index, :index
+    live "/orgs/:org_slug/projects/:project_slug/services", ServicesLive.Index, :index
+    live "/orgs/:org_slug/projects/:project_slug/services/new", ServicesLive.New, :new
+    live "/orgs/:org_slug/projects/:project_slug/services/:id", ServicesLive.Show, :show
+    live "/orgs/:org_slug/projects/:project_slug/services/:id/edit", ServicesLive.Edit, :edit
   end
 
   # Admin-only browser routes

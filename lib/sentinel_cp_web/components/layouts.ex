@@ -94,7 +94,11 @@ defmodule SentinelCpWeb.Layouts do
       <div class="flex items-center gap-3 flex-shrink-0">
         <.theme_toggle />
         <span class="text-xs text-base-content/60 hidden sm:inline">{@current_user.email}</span>
-        <.link href={~p"/session"} method="delete" class="text-xs text-base-content/50 hover:text-base-content">
+        <.link
+          href={~p"/session"}
+          method="delete"
+          class="text-xs text-base-content/50 hover:text-base-content"
+        >
           Logout
         </.link>
       </div>
@@ -129,6 +133,13 @@ defmodule SentinelCpWeb.Layouts do
           label="Nodes"
           current={@path}
           match="/nodes"
+        />
+        <.sidebar_link
+          path={~p"/orgs/#{@org_slug}/projects/#{@project_slug}/services"}
+          icon="hero-cog-6-tooth"
+          label="Services"
+          current={@path}
+          match="/services"
         />
         <.sidebar_link
           path={~p"/orgs/#{@org_slug}/projects/#{@project_slug}/bundles"}
