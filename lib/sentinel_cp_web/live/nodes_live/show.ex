@@ -328,13 +328,13 @@ defmodule SentinelCpWeb.NodesLive.Show do
               </form>
             </div>
             <%= if @node.labels && map_size(@node.labels) > 0 do %>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2" data-testid="node-labels">
                 <%= for {key, value} <- @node.labels do %>
                   <span class="badge badge-outline badge-sm">{key}: {value}</span>
                 <% end %>
               </div>
             <% else %>
-              <p class="text-base-content/50 text-sm">No labels</p>
+              <p class="text-base-content/50 text-sm" data-testid="node-labels">No labels</p>
             <% end %>
           </.k8s_section>
 

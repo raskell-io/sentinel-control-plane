@@ -67,11 +67,16 @@ defmodule SentinelCpWeb.FeatureCase do
   def log_in_via_browser(session, email, password) do
     import Wallaby.Query
 
+    session =
+      session
+      |> Wallaby.Browser.visit("/login")
+      |> Wallaby.Browser.fill_in(text_field("Email"), with: email)
+      |> Wallaby.Browser.fill_in(text_field("Password"), with: password)
+      |> Wallaby.Browser.click(button("Sign in"))
+
+    # Wait for redirect to complete - page should no longer have the login form
+    Process.sleep(1000)
     session
-    |> Wallaby.Browser.visit("/login")
-    |> Wallaby.Browser.fill_in(text_field("Email"), with: email)
-    |> Wallaby.Browser.fill_in(text_field("Password"), with: password)
-    |> Wallaby.Browser.click(button("Sign in"))
   end
 
   @doc """

@@ -65,7 +65,7 @@ defmodule SentinelCpWeb.DriftLive.Show do
       >
         <:badge>
           <.severity_badge severity={@event.severity} />
-          <.status_badge event={@event} />
+          <span data-testid="resolved-status"><.status_badge event={@event} /></span>
         </:badge>
         <:action>
           <button
@@ -87,6 +87,7 @@ defmodule SentinelCpWeb.DriftLive.Show do
                 <.link
                   navigate={node_path(@org, @project, @event.node)}
                   class="text-primary hover:underline"
+                  data-testid="node-name"
                 >
                   {@event.node.name}
                 </.link>
@@ -106,7 +107,7 @@ defmodule SentinelCpWeb.DriftLive.Show do
             </div>
             <div class="flex justify-between">
               <dt class="text-base-content/70">Severity</dt>
-              <dd><.severity_badge severity={@event.severity} /></dd>
+              <dd data-testid="severity"><.severity_badge severity={@event.severity} /></dd>
             </div>
           </dl>
         </.k8s_section>

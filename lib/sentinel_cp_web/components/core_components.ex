@@ -554,12 +554,13 @@ defmodule SentinelCpWeb.CoreComponents do
   """
   attr :title, :string, default: nil
   attr :class, :string, default: nil
+  attr :testid, :string, default: nil
 
   slot :inner_block, required: true
 
   def k8s_section(assigns) do
     ~H"""
-    <div class={["bg-base-200 rounded border border-base-300 p-4", @class]}>
+    <div class={["bg-base-200 rounded border border-base-300 p-4", @class]} data-testid={@testid}>
       <div :if={@title} class="section-title">{@title}</div>
       {render_slot(@inner_block)}
     </div>
@@ -605,13 +606,17 @@ defmodule SentinelCpWeb.CoreComponents do
     attr :label, :string, required: true
     attr :value, :string, required: true
     attr :color, :string
+    attr :testid, :string
   end
 
   def stat_strip(assigns) do
     ~H"""
     <div class="flex flex-wrap gap-3">
       <%= for stat <- @stat do %>
-        <div class="bg-base-200 border border-base-300 rounded px-4 py-2 min-w-[100px]">
+        <div
+          class="bg-base-200 border border-base-300 rounded px-4 py-2 min-w-[100px]"
+          data-testid={stat[:testid]}
+        >
           <div class="text-[10px] uppercase tracking-wider text-base-content/50">{stat.label}</div>
           <div class={[
             "text-2xl font-bold",

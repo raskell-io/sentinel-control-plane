@@ -145,15 +145,17 @@ defmodule SentinelCpWeb.DriftLive.Index do
         </:actions>
       </.table_toolbar>
 
-      <.stat_strip>
-        <:stat
-          label="Active Drifts"
-          value={to_string(@active_count)}
-          color={if @active_count > 0, do: "warning"}
-        />
-        <:stat label="Resolved" value={to_string(@resolved_count)} />
-        <:stat label="Managed Nodes" value={to_string(@drift_stats.total_managed)} color="info" />
-      </.stat_strip>
+      <div data-testid="drift-stats">
+        <.stat_strip>
+          <:stat
+            label="Active Drifts"
+            value={to_string(@active_count)}
+            color={if @active_count > 0, do: "warning"}
+          />
+          <:stat label="Resolved" value={to_string(@resolved_count)} />
+          <:stat label="Managed Nodes" value={to_string(@drift_stats.total_managed)} color="info" />
+        </.stat_strip>
+      </div>
 
       <div class="overflow-x-auto">
         <table class="table table-sm">
@@ -170,7 +172,7 @@ defmodule SentinelCpWeb.DriftLive.Index do
             </tr>
           </thead>
           <tbody>
-            <tr :for={event <- @events} class="hover">
+            <tr :for={event <- @events} class="hover" data-testid="drift-event-row">
               <td>
                 <.link
                   navigate={node_path(@org, @project, event.node)}
@@ -237,7 +239,7 @@ defmodule SentinelCpWeb.DriftLive.Index do
           </tbody>
         </table>
 
-        <div :if={@events == []} class="text-center py-12 text-base-content/50">
+        <div :if={@events == []} class="text-center py-12 text-base-content/50" data-testid="no-active-drift">
           No drift events found.
         </div>
       </div>
@@ -270,7 +272,7 @@ defmodule SentinelCpWeb.DriftLive.Index do
     assigns = assign(assigns, :class, class)
 
     ~H"""
-    <span class={"badge badge-sm #{@class}"}>{String.capitalize(@severity || "unknown")}</span>
+    <span class={"badge badge-sm #{@class}"} data-testid="severity-badge">{String.capitalize(@severity || "unknown")}</span>
     """
   end
 

@@ -142,13 +142,16 @@ defmodule SentinelCpWeb.BundlesLive.Show do
         back_path={project_bundles_path(@org, @project)}
       >
         <:badge>
-          <span class={[
-            "badge badge-sm",
-            @bundle.status == "compiled" && "badge-success",
-            @bundle.status == "compiling" && "badge-warning",
-            @bundle.status == "failed" && "badge-error",
-            @bundle.status == "pending" && "badge-ghost"
-          ]}>
+          <span
+            class={[
+              "badge badge-sm",
+              @bundle.status == "compiled" && "badge-success",
+              @bundle.status == "compiling" && "badge-warning",
+              @bundle.status == "failed" && "badge-error",
+              @bundle.status == "pending" && "badge-ghost"
+            ]}
+            data-testid="bundle-status"
+          >
             {@bundle.status}
           </span>
         </:badge>
@@ -207,7 +210,7 @@ defmodule SentinelCpWeb.BundlesLive.Show do
         <.k8s_section title="Metadata">
           <.definition_list>
             <:item label="ID"><span class="font-mono text-sm">{@bundle.id}</span></:item>
-            <:item label="Version"><span class="font-mono">{@bundle.version}</span></:item>
+            <:item label="Version"><span class="font-mono" data-testid="bundle-version">{@bundle.version}</span></:item>
             <:item label="Status">{@bundle.status}</:item>
             <:item label="Checksum">
               <span class="font-mono text-sm">{@bundle.checksum || "—"}</span>

@@ -233,14 +233,15 @@ defmodule SentinelCpWeb.NodesLive.Index do
       </div>
 
       <.stat_strip>
-        <:stat label="Total" value={to_string(Enum.count(@nodes))} color="info" />
-        <:stat label="Online" value={to_string(Map.get(@stats, "online", 0))} color="success" />
-        <:stat label="Offline" value={to_string(Map.get(@stats, "offline", 0))} color="error" />
-        <:stat label="Unknown" value={to_string(Map.get(@stats, "unknown", 0))} />
+        <:stat label="Total" value={to_string(Enum.count(@nodes))} color="info" testid="stats-total" />
+        <:stat label="Online" value={to_string(Map.get(@stats, "online", 0))} color="success" testid="stats-online" />
+        <:stat label="Offline" value={to_string(Map.get(@stats, "offline", 0))} color="error" testid="stats-offline" />
+        <:stat label="Unknown" value={to_string(Map.get(@stats, "unknown", 0))} testid="stats-unknown" />
         <:stat
           label="Drifted"
           value={to_string(@drift_stats.drifted)}
           color={if @drift_stats.drifted > 0, do: "warning", else: nil}
+          testid="stats-drifted"
         />
       </.stat_strip>
 
@@ -377,7 +378,7 @@ defmodule SentinelCpWeb.NodesLive.Index do
         </table>
 
         <%= if Enum.empty?(@nodes) do %>
-          <div class="p-8 text-center text-base-content/50">
+          <div class="p-8 text-center text-base-content/50" data-testid="empty-state">
             <p>No nodes found.</p>
             <p class="text-sm mt-2">Register a node above or let nodes self-register via the API.</p>
           </div>

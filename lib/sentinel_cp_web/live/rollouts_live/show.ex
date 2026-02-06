@@ -304,15 +304,18 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
         back_path={project_rollouts_path(@org, @project)}
       >
         <:badge>
-          <span class={[
-            "badge badge-sm",
-            @rollout.state == "completed" && "badge-success",
-            @rollout.state == "running" && "badge-warning",
-            @rollout.state == "failed" && "badge-error",
-            @rollout.state == "cancelled" && "badge-error",
-            @rollout.state == "paused" && "badge-info",
-            @rollout.state == "pending" && "badge-ghost"
-          ]}>
+          <span
+            class={[
+              "badge badge-sm",
+              @rollout.state == "completed" && "badge-success",
+              @rollout.state == "running" && "badge-warning",
+              @rollout.state == "failed" && "badge-error",
+              @rollout.state == "cancelled" && "badge-error",
+              @rollout.state == "paused" && "badge-info",
+              @rollout.state == "pending" && "badge-ghost"
+            ]}
+            data-testid="rollout-state"
+          >
             {@rollout.state}
           </span>
           <span
@@ -372,12 +375,14 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
         </:action>
       </.detail_header>
 
-      <.stat_strip>
-        <:stat label="Total" value={to_string(@progress.total)} />
-        <:stat label="Active" value={to_string(@progress.active)} color="success" />
-        <:stat label="Pending" value={to_string(@progress.pending)} />
-        <:stat label="Failed" value={to_string(@progress.failed)} color="error" />
-      </.stat_strip>
+      <div data-testid="rollout-progress">
+        <.stat_strip>
+          <:stat label="Total" value={to_string(@progress.total)} />
+          <:stat label="Active" value={to_string(@progress.active)} color="success" />
+          <:stat label="Pending" value={to_string(@progress.pending)} />
+          <:stat label="Failed" value={to_string(@progress.failed)} color="error" />
+        </.stat_strip>
+      </div>
 
       <%!-- Approval Required Panel --%>
       <div :if={@rollout.approval_state == "pending_approval"}>
@@ -500,7 +505,7 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
         </div>
       </div>
 
-      <.k8s_section title="Steps">
+      <.k8s_section title="Steps" testid="rollout-steps">
         <table class="table table-sm">
           <thead class="bg-base-300">
             <tr>

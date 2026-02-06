@@ -196,13 +196,16 @@ defmodule SentinelCpWeb.BundlesLive.Index do
                 </.link>
               </td>
               <td>
-                <span class={[
-                  "badge badge-sm",
-                  bundle.status == "compiled" && "badge-success",
-                  bundle.status == "compiling" && "badge-warning",
-                  bundle.status == "failed" && "badge-error",
-                  bundle.status == "pending" && "badge-ghost"
-                ]}>
+                <span
+                  class={[
+                    "badge badge-sm",
+                    bundle.status == "compiled" && "badge-success",
+                    bundle.status == "compiling" && "badge-warning",
+                    bundle.status == "failed" && "badge-error",
+                    bundle.status == "pending" && "badge-ghost"
+                  ]}
+                  data-testid="status-badge"
+                >
                   {bundle.status}
                 </span>
               </td>

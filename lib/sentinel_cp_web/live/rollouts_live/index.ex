@@ -404,7 +404,7 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
             </tr>
           </thead>
           <tbody>
-            <tr :for={rollout <- @rollouts}>
+            <tr :for={rollout <- @rollouts} data-testid="rollout-row">
               <td>
                 <.link
                   navigate={rollout_show_path(@org, @project, rollout)}
@@ -415,15 +415,18 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
                 </.link>
               </td>
               <td class="flex items-center gap-1">
-                <span class={[
-                  "badge badge-sm",
-                  rollout.state == "completed" && "badge-success",
-                  rollout.state == "running" && "badge-warning",
-                  rollout.state == "failed" && "badge-error",
-                  rollout.state == "cancelled" && "badge-error",
-                  rollout.state == "paused" && "badge-info",
-                  rollout.state == "pending" && "badge-ghost"
-                ]}>
+                <span
+                  class={[
+                    "badge badge-sm",
+                    rollout.state == "completed" && "badge-success",
+                    rollout.state == "running" && "badge-warning",
+                    rollout.state == "failed" && "badge-error",
+                    rollout.state == "cancelled" && "badge-error",
+                    rollout.state == "paused" && "badge-info",
+                    rollout.state == "pending" && "badge-ghost"
+                  ]}
+                  data-testid="rollout-state"
+                >
                   {rollout.state}
                 </span>
                 <span
