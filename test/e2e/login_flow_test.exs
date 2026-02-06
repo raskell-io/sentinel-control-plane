@@ -12,10 +12,11 @@ defmodule SentinelCpWeb.E2E.LoginFlowTest do
 
   describe "login flow" do
     feature "valid login redirects away from login page", %{session: session} do
-      user = SentinelCp.AccountsFixtures.user_fixture(%{
-        email: "test@example.com",
-        password: "SecurePassword123!"
-      })
+      user =
+        SentinelCp.AccountsFixtures.user_fixture(%{
+          email: "test@example.com",
+          password: "SecurePassword123!"
+        })
 
       session
       |> visit("/login")

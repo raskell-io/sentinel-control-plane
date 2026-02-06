@@ -53,7 +53,8 @@ defmodule SentinelCpWeb.EnvironmentsLive.Index do
      assign(socket,
        show_form: !socket.assigns.show_form,
        editing_environment: nil,
-       form: to_form(%{"ordinal" => to_string(next_ordinal), "color" => "#6366f1"}, as: "environment")
+       form:
+         to_form(%{"ordinal" => to_string(next_ordinal), "color" => "#6366f1"}, as: "environment")
      )}
   end
 
@@ -212,7 +213,9 @@ defmodule SentinelCpWeb.EnvironmentsLive.Index do
       </.table_toolbar>
 
       <div :if={@show_form}>
-        <.k8s_section title={if @editing_environment, do: "Edit Environment", else: "Create Environment"}>
+        <.k8s_section title={
+          if @editing_environment, do: "Edit Environment", else: "Create Environment"
+        }>
           <form
             phx-submit={if @editing_environment, do: "update_environment", else: "create_environment"}
             class="space-y-4"
@@ -334,7 +337,10 @@ defmodule SentinelCpWeb.EnvironmentsLive.Index do
               <span class="badge badge-sm badge-info">
                 {Map.get(@env_stats, env.id, 0)} nodes
               </span>
-              <span :if={get_in(env.settings, ["approval_required"])} class="badge badge-sm badge-warning">
+              <span
+                :if={get_in(env.settings, ["approval_required"])}
+                class="badge badge-sm badge-warning"
+              >
                 Approval required
               </span>
             </div>

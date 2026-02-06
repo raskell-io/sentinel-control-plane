@@ -58,10 +58,11 @@ defmodule SentinelCpWeb.E2E.NodeManagementTest do
     feature "filter nodes by status", %{session: session} do
       {session, context} = setup_full_context(session)
 
-      online_node = SentinelCp.NodesFixtures.node_fixture(%{
-        project: context.project,
-        name: "online-proxy"
-      })
+      online_node =
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "online-proxy"
+        })
 
       SentinelCp.NodesFixtures.node_fixture(%{
         project: context.project,
@@ -84,10 +85,11 @@ defmodule SentinelCpWeb.E2E.NodeManagementTest do
     feature "delete node from list", %{session: session} do
       {session, context} = setup_full_context(session)
 
-      node = SentinelCp.NodesFixtures.node_fixture(%{
-        project: context.project,
-        name: "deletable-proxy"
-      })
+      node =
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "deletable-proxy"
+        })
 
       session
       |> visit("/projects/#{context.project.slug}/nodes")
@@ -101,11 +103,12 @@ defmodule SentinelCpWeb.E2E.NodeManagementTest do
     feature "view node details page", %{session: session} do
       {session, context} = setup_full_context(session)
 
-      node = SentinelCp.NodesFixtures.node_fixture(%{
-        project: context.project,
-        name: "detail-proxy",
-        labels: %{"env" => "production", "region" => "us-east"}
-      })
+      node =
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "detail-proxy",
+          labels: %{"env" => "production", "region" => "us-east"}
+        })
 
       session
       |> visit("/projects/#{context.project.slug}/nodes/#{node.id}")

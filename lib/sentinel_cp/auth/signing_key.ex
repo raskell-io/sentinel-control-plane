@@ -26,7 +26,15 @@ defmodule SentinelCp.Auth.SigningKey do
   """
   def create_changeset(key, attrs) do
     key
-    |> cast(attrs, [:org_id, :key_id, :public_key, :private_key_encrypted, :algorithm, :active, :expires_at])
+    |> cast(attrs, [
+      :org_id,
+      :key_id,
+      :public_key,
+      :private_key_encrypted,
+      :algorithm,
+      :active,
+      :expires_at
+    ])
     |> validate_required([:org_id, :key_id, :public_key, :private_key_encrypted])
     |> unique_constraint(:key_id)
     |> foreign_key_constraint(:org_id)

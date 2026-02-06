@@ -40,7 +40,11 @@ defmodule SentinelCpWeb.WebhooksLiveTest do
       assert html =~ "Configuration" or html =~ "Repository" or html =~ "Branch"
     end
 
-    test "shows disabled status when no repo configured", %{conn: conn, org: org, project: project} do
+    test "shows disabled status when no repo configured", %{
+      conn: conn,
+      org: org,
+      project: project
+    } do
       {:ok, _view, html} = live(conn, ~p"/orgs/#{org.slug}/projects/#{project.slug}/webhooks")
       assert html =~ "Not configured" or html =~ "Disabled" or html =~ "disabled"
     end

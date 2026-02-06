@@ -51,8 +51,19 @@ defmodule SentinelCpWeb.ScheduleLive.Index do
 
       <div :if={@scheduled_rollouts == []} class="text-center py-12 text-base-content/50">
         <div class="text-4xl mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-16 w-16 mx-auto opacity-50"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
           </svg>
         </div>
         <p class="text-lg">No scheduled rollouts</p>
@@ -78,8 +89,19 @@ defmodule SentinelCpWeb.ScheduleLive.Index do
 
         <div :for={{date, rollouts} <- @grouped_rollouts} class="space-y-2">
           <h2 class="text-lg font-semibold flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-base-content/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 text-base-content/50"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
             </svg>
             {format_date(date)}
             <span class="badge badge-sm badge-ghost">{length(rollouts)} rollout(s)</span>
@@ -105,10 +127,16 @@ defmodule SentinelCpWeb.ScheduleLive.Index do
                       >
                         {String.slice(rollout.id, 0, 8)}
                       </.link>
-                      <span :if={rollout.approval_state == "pending_approval"} class="badge badge-warning badge-sm">
+                      <span
+                        :if={rollout.approval_state == "pending_approval"}
+                        class="badge badge-warning badge-sm"
+                      >
                         awaiting approval
                       </span>
-                      <span :if={rollout.approval_state == "approved"} class="badge badge-success badge-sm">
+                      <span
+                        :if={rollout.approval_state == "approved"}
+                        class="badge badge-success badge-sm"
+                      >
                         approved
                       </span>
                     </div>

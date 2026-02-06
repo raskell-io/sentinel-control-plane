@@ -52,7 +52,9 @@ defmodule SentinelCp.Bundles.Risk do
 
   defp check_auth_policy_changed(reasons, new_config, prev_config) do
     new_auth = extract_blocks(new_config, ~r/(?:auth|authentication|authorization)\s*\{[^}]*\}/s)
-    prev_auth = extract_blocks(prev_config, ~r/(?:auth|authentication|authorization)\s*\{[^}]*\}/s)
+
+    prev_auth =
+      extract_blocks(prev_config, ~r/(?:auth|authentication|authorization)\s*\{[^}]*\}/s)
 
     if new_auth != prev_auth and prev_auth != [] do
       ["auth_policy_changed" | reasons]

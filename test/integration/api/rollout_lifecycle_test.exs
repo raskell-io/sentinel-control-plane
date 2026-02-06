@@ -20,13 +20,17 @@ defmodule SentinelCpWeb.Integration.Api.RolloutLifecycleTest do
 
   describe "rollout creation" do
     test "create rollout for compiled bundle", %{conn: conn} do
-      {api_conn, context} = setup_api_context(conn, scopes: ["rollouts:read", "rollouts:write", "bundles:read"])
+      {api_conn, context} =
+        setup_api_context(conn, scopes: ["rollouts:read", "rollouts:write", "bundles:read"])
 
       bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{project: context.project})
 
       # Create some nodes for the rollout to target
       for i <- 1..3 do
-        SentinelCp.NodesFixtures.node_fixture(%{project: context.project, name: "rollout-node-#{i}"})
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "rollout-node-#{i}"
+        })
       end
 
       create_resp =
@@ -91,7 +95,10 @@ defmodule SentinelCpWeb.Integration.Api.RolloutLifecycleTest do
 
       # Create nodes
       for i <- 1..2 do
-        SentinelCp.NodesFixtures.node_fixture(%{project: context.project, name: "state-node-#{i}"})
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "state-node-#{i}"
+        })
       end
 
       # Create rollout
@@ -148,7 +155,11 @@ defmodule SentinelCpWeb.Integration.Api.RolloutLifecycleTest do
       assert cancel_resp["state"] == "cancelled"
     end
 
-    test "cannot pause already paused rollout", %{api_conn: api_conn, context: context, rollout_id: rollout_id} do
+    test "cannot pause already paused rollout", %{
+      api_conn: api_conn,
+      context: context,
+      rollout_id: rollout_id
+    } do
       rollout = SentinelCp.Rollouts.get_rollout(rollout_id)
       {:ok, _} = force_rollout_state(rollout, "paused")
 
@@ -160,7 +171,11 @@ defmodule SentinelCpWeb.Integration.Api.RolloutLifecycleTest do
       assert error_resp["error"] =~ "cannot be paused"
     end
 
-    test "cannot resume running rollout", %{api_conn: api_conn, context: context, rollout_id: rollout_id} do
+    test "cannot resume running rollout", %{
+      api_conn: api_conn,
+      context: context,
+      rollout_id: rollout_id
+    } do
       rollout = SentinelCp.Rollouts.get_rollout(rollout_id)
       {:ok, _} = force_rollout_state(rollout, "running")
 

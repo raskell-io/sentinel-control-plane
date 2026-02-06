@@ -85,10 +85,11 @@ defmodule SentinelCpWeb.Integration.Api.NodeWorkflowTest do
       {_api_conn, context} = setup_api_context(conn, scopes: ["nodes:read"])
 
       # Use fixture to create node
-      {node, node_key} = SentinelCp.NodesFixtures.node_with_key_fixture(%{
-        project: context.project,
-        name: "jwt-test-node"
-      })
+      {node, node_key} =
+        SentinelCp.NodesFixtures.node_with_key_fixture(%{
+          project: context.project,
+          name: "jwt-test-node"
+        })
 
       # Exchange static key for JWT
       token_resp =
@@ -168,18 +169,21 @@ defmodule SentinelCpWeb.Integration.Api.NodeWorkflowTest do
       {api_conn, context} = setup_api_context(conn, scopes: ["nodes:read"])
 
       # Create nodes using fixtures instead of API
-      online_node = SentinelCp.NodesFixtures.node_fixture(%{
-        project: context.project,
-        name: "online-node"
-      })
+      online_node =
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "online-node"
+        })
 
-      _offline_node = SentinelCp.NodesFixtures.node_fixture(%{
-        project: context.project,
-        name: "offline-node"
-      })
+      _offline_node =
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "offline-node"
+        })
 
       # Make one node online via heartbeat
-      {:ok, _} = SentinelCp.Nodes.record_heartbeat(online_node, %{health: %{"status" => "healthy"}})
+      {:ok, _} =
+        SentinelCp.Nodes.record_heartbeat(online_node, %{health: %{"status" => "healthy"}})
 
       # Filter by online status
       online_resp =

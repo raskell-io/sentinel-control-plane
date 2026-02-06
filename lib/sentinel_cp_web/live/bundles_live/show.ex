@@ -210,7 +210,9 @@ defmodule SentinelCpWeb.BundlesLive.Show do
         <.k8s_section title="Metadata">
           <.definition_list>
             <:item label="ID"><span class="font-mono text-sm">{@bundle.id}</span></:item>
-            <:item label="Version"><span class="font-mono" data-testid="bundle-version">{@bundle.version}</span></:item>
+            <:item label="Version">
+              <span class="font-mono" data-testid="bundle-version">{@bundle.version}</span>
+            </:item>
             <:item label="Status">{@bundle.status}</:item>
             <:item label="Checksum">
               <span class="font-mono text-sm">{@bundle.checksum || "—"}</span>

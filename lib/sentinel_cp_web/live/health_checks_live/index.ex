@@ -154,7 +154,10 @@ defmodule SentinelCpWeb.HealthChecksLive.Index do
         {:noreply,
          socket
          |> assign(endpoints: endpoints)
-         |> put_flash(:info, "Health check #{if endpoint.enabled, do: "disabled", else: "enabled"}.")}
+         |> put_flash(
+           :info,
+           "Health check #{if endpoint.enabled, do: "disabled", else: "enabled"}."
+         )}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Could not update health check.")}
@@ -409,7 +412,11 @@ defmodule SentinelCpWeb.HealthChecksLive.Index do
     <span :if={match?({:pass, _}, @result)} class="badge badge-sm badge-success">
       Pass ({elem(@result, 1)}ms)
     </span>
-    <span :if={match?({:fail, _}, @result)} class="badge badge-sm badge-error" title={elem(@result, 1)}>
+    <span
+      :if={match?({:fail, _}, @result)}
+      class="badge badge-sm badge-error"
+      title={elem(@result, 1)}
+    >
       Fail
     </span>
     """
@@ -453,6 +460,7 @@ defmodule SentinelCpWeb.HealthChecksLive.Index do
   end
 
   defp format_headers(nil), do: ""
+
   defp format_headers(headers) when is_map(headers) do
     headers
     |> Enum.map(fn {k, v} -> "#{k}: #{v}" end)

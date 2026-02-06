@@ -236,9 +236,15 @@ defmodule SentinelCpWeb.OrgsLive.Show do
                   <% else %>
                     <form phx-change="update_role" class="inline">
                       <input type="hidden" name="membership_id" value={membership.id} />
-                      <select name="role" class="select select-bordered select-xs" onchange="this.form.dispatchEvent(new Event('change', {bubbles: true}))">
+                      <select
+                        name="role"
+                        class="select select-bordered select-xs"
+                        onchange="this.form.dispatchEvent(new Event('change', {bubbles: true}))"
+                      >
                         <option value="reader" selected={membership.role == "reader"}>reader</option>
-                        <option value="operator" selected={membership.role == "operator"}>operator</option>
+                        <option value="operator" selected={membership.role == "operator"}>
+                          operator
+                        </option>
                         <option value="admin" selected={membership.role == "admin"}>admin</option>
                       </select>
                     </form>

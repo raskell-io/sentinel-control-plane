@@ -120,9 +120,11 @@ defmodule SentinelCpWeb.NodesLive.Show do
   def handle_event("delete", _, socket) do
     case Nodes.delete_node(socket.assigns.node) do
       {:ok, _} ->
-        Audit.log_user_action(socket.assigns.current_user, "delete", "node", socket.assigns.node.id,
-          project_id: socket.assigns.project.id
-        )
+        Audit.log_user_action(
+          socket.assigns.current_user,
+          "delete",
+          "node",
+          socket.assigns.node.id, project_id: socket.assigns.project.id)
 
         {:noreply,
          socket
@@ -224,7 +226,11 @@ defmodule SentinelCpWeb.NodesLive.Show do
 
     case Nodes.set_node_version_constraints(node.id, opts) do
       {:ok, updated_node} ->
-        Audit.log_user_action(socket.assigns.current_user, "set_version_constraints", "node", node.id,
+        Audit.log_user_action(
+          socket.assigns.current_user,
+          "set_version_constraints",
+          "node",
+          node.id,
           project_id: socket.assigns.project.id,
           metadata: %{
             min_bundle_version: opts[:min_bundle_version],
@@ -253,7 +259,9 @@ defmodule SentinelCpWeb.NodesLive.Show do
       <.detail_header name={@node.name} resource_type="node" back_path={nodes_path(@org, @project)}>
         <:badge>
           <.status_badge status={@node.status} />
-          <span :if={@node.version} class="badge badge-outline badge-sm font-mono">v{@node.version}</span>
+          <span :if={@node.version} class="badge badge-outline badge-sm font-mono">
+            v{@node.version}
+          </span>
         </:badge>
         <:subtitle>Registered {format_datetime(@node.registered_at)}</:subtitle>
         <:action>
@@ -273,15 +281,22 @@ defmodule SentinelCpWeb.NodesLive.Show do
         <.k8s_section title="Node Information">
           <.definition_list>
             <:item label="ID"><span class="font-mono text-sm">{@node.id}</span></:item>
-            <:item label="Hostname"><span class="font-mono text-sm">{@node.hostname || "-"}</span></:item>
+            <:item label="Hostname">
+              <span class="font-mono text-sm">{@node.hostname || "-"}</span>
+            </:item>
             <:item label="IP Address"><span class="font-mono text-sm">{@node.ip || "-"}</span></:item>
-            <:item label="Version"><span class="font-mono text-sm">{@node.version || "-"}</span></:item>
+            <:item label="Version">
+              <span class="font-mono text-sm">{@node.version || "-"}</span>
+            </:item>
             <:item label="Last Seen">
               {if @node.last_seen_at, do: format_relative_time(@node.last_seen_at), else: "Never"}
             </:item>
             <:item label="Active Bundle">
               <%= if @node.active_bundle_id do %>
-                <.link navigate={bundle_path(@org, @project, @node.active_bundle_id)} class="link link-primary font-mono text-sm">
+                <.link
+                  navigate={bundle_path(@org, @project, @node.active_bundle_id)}
+                  class="link link-primary font-mono text-sm"
+                >
                   {String.slice(@node.active_bundle_id, 0, 8)}…
                 </.link>
               <% else %>
@@ -290,7 +305,10 @@ defmodule SentinelCpWeb.NodesLive.Show do
             </:item>
             <:item label="Staged Bundle">
               <%= if @node.staged_bundle_id do %>
-                <.link navigate={bundle_path(@org, @project, @node.staged_bundle_id)} class="link link-primary font-mono text-sm">
+                <.link
+                  navigate={bundle_path(@org, @project, @node.staged_bundle_id)}
+                  class="link link-primary font-mono text-sm"
+                >
                   {String.slice(@node.staged_bundle_id, 0, 8)}…
                 </.link>
               <% else %>
@@ -299,7 +317,10 @@ defmodule SentinelCpWeb.NodesLive.Show do
             </:item>
             <:item label="Expected Bundle">
               <%= if @node.expected_bundle_id do %>
-                <.link navigate={bundle_path(@org, @project, @node.expected_bundle_id)} class="link link-primary font-mono text-sm">
+                <.link
+                  navigate={bundle_path(@org, @project, @node.expected_bundle_id)}
+                  class="link link-primary font-mono text-sm"
+                >
                   {String.slice(@node.expected_bundle_id, 0, 8)}…
                 </.link>
               <% else %>
@@ -323,7 +344,9 @@ defmodule SentinelCpWeb.NodesLive.Show do
                 >{format_labels_for_edit(@node.labels)}</textarea>
                 <div class="flex gap-2">
                   <button type="submit" class="btn btn-primary btn-xs">Save</button>
-                  <button type="button" class="btn btn-ghost btn-xs" phx-click="toggle_label_form">Cancel</button>
+                  <button type="button" class="btn btn-ghost btn-xs" phx-click="toggle_label_form">
+                    Cancel
+                  </button>
                 </div>
               </form>
             </div>
@@ -362,7 +385,10 @@ defmodule SentinelCpWeb.NodesLive.Show do
                 <span class="text-base-content/70">Pinned Bundle:</span>
                 <%= if @node.pinned_bundle_id do %>
                   <div class="flex items-center gap-2">
-                    <.link navigate={bundle_path(@org, @project, @node.pinned_bundle_id)} class="font-mono text-primary hover:underline">
+                    <.link
+                      navigate={bundle_path(@org, @project, @node.pinned_bundle_id)}
+                      class="font-mono text-primary hover:underline"
+                    >
                       {String.slice(@node.pinned_bundle_id, 0, 8)}…
                     </.link>
                     <button phx-click="unpin_bundle" class="btn btn-ghost btn-xs text-error">
@@ -469,7 +495,9 @@ defmodule SentinelCpWeb.NodesLive.Show do
               class={"px-4 py-2 text-sm font-medium border-b-2 #{if @active_tab == "drift", do: "border-primary text-primary", else: "border-transparent text-base-content/50 hover:text-base-content"}"}
             >
               Drift History
-              <span :if={has_active_drift?(@drift_events)} class="ml-1 badge badge-warning badge-xs">!</span>
+              <span :if={has_active_drift?(@drift_events)} class="ml-1 badge badge-warning badge-xs">
+                !
+              </span>
             </button>
           </div>
         </div>
@@ -557,13 +585,19 @@ defmodule SentinelCpWeb.NodesLive.Show do
                 <tr>
                   <td class="text-sm">{format_datetime(event.detected_at)}</td>
                   <td>
-                    <.link navigate={bundle_path(@org, @project, event.expected_bundle_id)} class="font-mono text-sm text-primary hover:underline">
+                    <.link
+                      navigate={bundle_path(@org, @project, event.expected_bundle_id)}
+                      class="font-mono text-sm text-primary hover:underline"
+                    >
                       {String.slice(event.expected_bundle_id, 0, 8)}
                     </.link>
                   </td>
                   <td>
                     <%= if event.actual_bundle_id do %>
-                      <.link navigate={bundle_path(@org, @project, event.actual_bundle_id)} class="font-mono text-sm text-primary hover:underline">
+                      <.link
+                        navigate={bundle_path(@org, @project, event.actual_bundle_id)}
+                        class="font-mono text-sm text-primary hover:underline"
+                      >
                         {String.slice(event.actual_bundle_id, 0, 8)}
                       </.link>
                     <% else %>
@@ -604,20 +638,38 @@ defmodule SentinelCpWeb.NodesLive.Show do
   defp drift_alert(assigns) do
     ~H"""
     <div class="alert alert-warning">
-      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        class="stroke-current shrink-0 h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+        />
+      </svg>
       <div>
         <h3 class="font-bold">Configuration Drift Detected</h3>
         <div class="text-sm">
           Running bundle
           <%= if @node.active_bundle_id do %>
-            <.link navigate={bundle_path(@org, @project, @node.active_bundle_id)} class="font-mono link">
+            <.link
+              navigate={bundle_path(@org, @project, @node.active_bundle_id)}
+              class="font-mono link"
+            >
               {String.slice(@node.active_bundle_id, 0, 8)}…
             </.link>
           <% else %>
             <span class="font-mono">none</span>
           <% end %>
           but should be running
-          <.link navigate={bundle_path(@org, @project, @node.expected_bundle_id)} class="font-mono link">
+          <.link
+            navigate={bundle_path(@org, @project, @node.expected_bundle_id)}
+            class="font-mono link"
+          >
             {String.slice(@node.expected_bundle_id, 0, 8)}…
           </.link>
         </div>

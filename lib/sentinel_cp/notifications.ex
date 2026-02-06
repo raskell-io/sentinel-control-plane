@@ -149,10 +149,11 @@ defmodule SentinelCp.Notifications do
           total_managed: drift_stats.total_managed,
           drifted: drift_stats.drifted,
           in_sync: drift_stats.in_sync,
-          percentage: if(drift_stats.total_managed > 0,
-            do: Float.round(drift_stats.drifted / drift_stats.total_managed * 100, 2),
-            else: 0.0
-          )
+          percentage:
+            if(drift_stats.total_managed > 0,
+              do: Float.round(drift_stats.drifted / drift_stats.total_managed * 100, 2),
+              else: 0.0
+            )
         },
         threshold: %{
           percentage: Project.drift_alert_threshold(project),
@@ -237,7 +238,12 @@ defmodule SentinelCp.Notifications do
         :ok
 
       {:error, reason} ->
-        Logger.warning("Notification failed", url: url, event: payload[:event], error: inspect(reason))
+        Logger.warning("Notification failed",
+          url: url,
+          event: payload[:event],
+          error: inspect(reason)
+        )
+
         {:error, reason}
     end
   end

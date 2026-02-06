@@ -67,7 +67,11 @@ defmodule SentinelCp.Bundles.SbomTest do
       {:ok, sbom} = Sbom.generate(bundle())
       components = sbom["components"]
 
-      listener_names = components |> Enum.filter(&(&1["group"] == "sentinel.listeners")) |> Enum.map(& &1["name"])
+      listener_names =
+        components
+        |> Enum.filter(&(&1["group"] == "sentinel.listeners"))
+        |> Enum.map(& &1["name"])
+
       assert "listener:http" in listener_names
       assert "listener:https" in listener_names
     end
@@ -76,7 +80,9 @@ defmodule SentinelCp.Bundles.SbomTest do
       {:ok, sbom} = Sbom.generate(bundle())
       components = sbom["components"]
 
-      route_names = components |> Enum.filter(&(&1["group"] == "sentinel.routes")) |> Enum.map(& &1["name"])
+      route_names =
+        components |> Enum.filter(&(&1["group"] == "sentinel.routes")) |> Enum.map(& &1["name"])
+
       assert "route:web" in route_names
       assert "route:api" in route_names
     end
@@ -85,7 +91,11 @@ defmodule SentinelCp.Bundles.SbomTest do
       {:ok, sbom} = Sbom.generate(bundle())
       components = sbom["components"]
 
-      upstream_names = components |> Enum.filter(&(&1["group"] == "sentinel.upstreams")) |> Enum.map(& &1["name"])
+      upstream_names =
+        components
+        |> Enum.filter(&(&1["group"] == "sentinel.upstreams"))
+        |> Enum.map(& &1["name"])
+
       assert "upstream:backend" in upstream_names
       assert "upstream:api" in upstream_names
     end
@@ -94,7 +104,9 @@ defmodule SentinelCp.Bundles.SbomTest do
       {:ok, sbom} = Sbom.generate(bundle())
       components = sbom["components"]
 
-      agent_names = components |> Enum.filter(&(&1["group"] == "sentinel.agents")) |> Enum.map(& &1["name"])
+      agent_names =
+        components |> Enum.filter(&(&1["group"] == "sentinel.agents")) |> Enum.map(& &1["name"])
+
       assert "agent:waf" in agent_names
     end
 

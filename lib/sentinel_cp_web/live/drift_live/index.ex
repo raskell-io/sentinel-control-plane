@@ -69,7 +69,8 @@ defmodule SentinelCpWeb.DriftLive.Index do
 
   @impl true
   def handle_info({:drift_event, _type, _node_id}, socket) do
-    {:noreply, load_data(socket, socket.assigns.org, socket.assigns.project, socket.assigns.status_filter)}
+    {:noreply,
+     load_data(socket, socket.assigns.org, socket.assigns.project, socket.assigns.status_filter)}
   end
 
   defp load_data(socket, org, project, status_filter) do
@@ -239,7 +240,11 @@ defmodule SentinelCpWeb.DriftLive.Index do
           </tbody>
         </table>
 
-        <div :if={@events == []} class="text-center py-12 text-base-content/50" data-testid="no-active-drift">
+        <div
+          :if={@events == []}
+          class="text-center py-12 text-base-content/50"
+          data-testid="no-active-drift"
+        >
           No drift events found.
         </div>
       </div>
@@ -272,7 +277,9 @@ defmodule SentinelCpWeb.DriftLive.Index do
     assigns = assign(assigns, :class, class)
 
     ~H"""
-    <span class={"badge badge-sm #{@class}"} data-testid="severity-badge">{String.capitalize(@severity || "unknown")}</span>
+    <span class={"badge badge-sm #{@class}"} data-testid="severity-badge">
+      {String.capitalize(@severity || "unknown")}
+    </span>
     """
   end
 

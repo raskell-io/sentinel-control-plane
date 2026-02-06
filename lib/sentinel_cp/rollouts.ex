@@ -8,7 +8,18 @@ defmodule SentinelCp.Rollouts do
 
   import Ecto.Query, warn: false
   alias SentinelCp.Repo
-  alias SentinelCp.Rollouts.{Rollout, RolloutStep, NodeBundleStatus, RolloutApproval, RolloutTemplate, TickWorker, HealthCheckEndpoint, HealthChecker}
+
+  alias SentinelCp.Rollouts.{
+    Rollout,
+    RolloutStep,
+    NodeBundleStatus,
+    RolloutApproval,
+    RolloutTemplate,
+    TickWorker,
+    HealthCheckEndpoint,
+    HealthChecker
+  }
+
   alias SentinelCp.{Bundles, Nodes, Notifications, Orgs, Projects}
 
   ## Rollout Template CRUD
@@ -329,7 +340,9 @@ defmodule SentinelCp.Rollouts do
           |> Repo.update()
 
         # Send notification
-        maybe_send_notification(fn -> Notifications.notify_rollout_rejected(rollout, user, comment) end)
+        maybe_send_notification(fn ->
+          Notifications.notify_rollout_rejected(rollout, user, comment)
+        end)
 
         result
       end
@@ -483,7 +496,13 @@ defmodule SentinelCp.Rollouts do
     if node_ids == [] do
       {:error, :no_target_nodes}
     else
-      batches = chunk_into_batches(node_ids, rollout.strategy, rollout.batch_size, rollout.batch_percentage)
+      batches =
+        chunk_into_batches(
+          node_ids,
+          rollout.strategy,
+          rollout.batch_size,
+          rollout.batch_percentage
+        )
 
       result =
         Repo.transaction(fn ->
@@ -1205,6 +1224,7 @@ defmodule SentinelCp.Rollouts do
 
   defp broadcast_and_notify(rollout, old_state, new_state) do
     broadcast_rollout_update(rollout)
+
     maybe_send_notification(fn ->
       Notifications.notify_rollout_state_change(rollout, old_state, new_state)
     end)

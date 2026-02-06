@@ -58,7 +58,8 @@ defmodule SentinelCpWeb.BundlesLive.Diff do
       >
         <:badge>
           <span :if={@bundle_a && @bundle_b} class="text-sm font-normal text-base-content/70">
-            <span data-testid="diff-from">{@bundle_a.version}</span> → <span data-testid="diff-to">{@bundle_b.version}</span>
+            <span data-testid="diff-from">{@bundle_a.version}</span>
+            → <span data-testid="diff-to">{@bundle_b.version}</span>
           </span>
         </:badge>
       </.detail_header>

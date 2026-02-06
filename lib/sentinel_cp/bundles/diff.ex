@@ -101,6 +101,7 @@ defmodule SentinelCp.Bundles.Diff do
   end
 
   defp extract_manifest_files(nil), do: %{}
+
   defp extract_manifest_files(manifest) when is_map(manifest) do
     case Map.get(manifest, "files") do
       files when is_map(files) -> files

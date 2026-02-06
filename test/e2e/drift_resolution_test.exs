@@ -22,10 +22,11 @@ defmodule SentinelCpWeb.E2E.DriftResolutionTest do
     feature "displays drift events when they exist", %{session: session} do
       {session, context} = setup_full_context(session)
 
-      node = SentinelCp.NodesFixtures.node_fixture(%{
-        project: context.project,
-        name: "drifted-node"
-      })
+      node =
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "drifted-node"
+        })
 
       SentinelCp.NodesFixtures.drift_event_fixture(%{
         node: node,
@@ -56,15 +57,17 @@ defmodule SentinelCpWeb.E2E.DriftResolutionTest do
     feature "resolve drift event from list", %{session: session} do
       {session, context} = setup_full_context(session)
 
-      node = SentinelCp.NodesFixtures.node_fixture(%{
-        project: context.project,
-        name: "resolve-single-node"
-      })
+      node =
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "resolve-single-node"
+        })
 
-      event = SentinelCp.NodesFixtures.drift_event_fixture(%{
-        node: node,
-        project: context.project
-      })
+      event =
+        SentinelCp.NodesFixtures.drift_event_fixture(%{
+          node: node,
+          project: context.project
+        })
 
       session
       |> visit("/projects/#{context.project.slug}/drift")
@@ -82,10 +85,11 @@ defmodule SentinelCpWeb.E2E.DriftResolutionTest do
     feature "resolve all drift events at once", %{session: session} do
       {session, context} = setup_full_context(session)
 
-      node = SentinelCp.NodesFixtures.node_fixture(%{
-        project: context.project,
-        name: "resolve-all-node"
-      })
+      node =
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "resolve-all-node"
+        })
 
       # Create multiple events
       for _ <- 1..3 do
@@ -101,9 +105,10 @@ defmodule SentinelCpWeb.E2E.DriftResolutionTest do
         |> assert_has(css("[data-testid='drift-event-row']", count: 3))
 
       # Accept the confirmation dialog and click the button
-      _message = accept_confirm(session, fn s ->
-        click(s, css("button[phx-click='resolve_all']"))
-      end)
+      _message =
+        accept_confirm(session, fn s ->
+          click(s, css("button[phx-click='resolve_all']"))
+        end)
 
       # Wait for LiveView to update and check empty state
       session
@@ -115,16 +120,18 @@ defmodule SentinelCpWeb.E2E.DriftResolutionTest do
     feature "view drift event details", %{session: session} do
       {session, context} = setup_full_context(session)
 
-      node = SentinelCp.NodesFixtures.node_fixture(%{
-        project: context.project,
-        name: "detail-drift-node"
-      })
+      node =
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "detail-drift-node"
+        })
 
-      event = SentinelCp.NodesFixtures.drift_event_fixture(%{
-        node: node,
-        project: context.project,
-        severity: "critical"
-      })
+      event =
+        SentinelCp.NodesFixtures.drift_event_fixture(%{
+          node: node,
+          project: context.project,
+          severity: "critical"
+        })
 
       session
       |> visit("/projects/#{context.project.slug}/drift/#{event.id}")
@@ -138,10 +145,11 @@ defmodule SentinelCpWeb.E2E.DriftResolutionTest do
 
       node = SentinelCp.NodesFixtures.node_fixture(%{project: context.project})
 
-      event = SentinelCp.NodesFixtures.drift_event_fixture(%{
-        node: node,
-        project: context.project
-      })
+      event =
+        SentinelCp.NodesFixtures.drift_event_fixture(%{
+          node: node,
+          project: context.project
+        })
 
       session
       |> visit("/projects/#{context.project.slug}/drift/#{event.id}")
@@ -178,15 +186,18 @@ defmodule SentinelCpWeb.E2E.DriftResolutionTest do
 
       node = SentinelCp.NodesFixtures.node_fixture(%{project: context.project})
 
-      _active_event = SentinelCp.NodesFixtures.drift_event_fixture(%{
-        node: node,
-        project: context.project
-      })
+      _active_event =
+        SentinelCp.NodesFixtures.drift_event_fixture(%{
+          node: node,
+          project: context.project
+        })
 
-      resolved_event = SentinelCp.NodesFixtures.drift_event_fixture(%{
-        node: node,
-        project: context.project
-      })
+      resolved_event =
+        SentinelCp.NodesFixtures.drift_event_fixture(%{
+          node: node,
+          project: context.project
+        })
+
       {:ok, _} = SentinelCp.Nodes.resolve_drift_event(resolved_event, "manual")
 
       session

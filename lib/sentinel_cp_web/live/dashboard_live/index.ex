@@ -68,7 +68,11 @@ defmodule SentinelCpWeb.DashboardLive.Index do
         <:stat label="Active Rollouts" value={to_string(@overview.active_rollouts)} color="warning" />
         <:stat
           label="Success Rate"
-          value={if @overview.deployment_success_rate, do: "#{@overview.deployment_success_rate}%", else: "—"}
+          value={
+            if @overview.deployment_success_rate,
+              do: "#{@overview.deployment_success_rate}%",
+              else: "—"
+          }
           color="info"
         />
       </.stat_strip>
@@ -173,21 +177,27 @@ defmodule SentinelCpWeb.DashboardLive.Index do
       <div class="flex items-center gap-3">
         <span class="w-20 text-sm">Online</span>
         <div class="flex-1 bg-base-300 rounded-full h-4 overflow-hidden">
-          <div class="bg-success h-full rounded-full transition-all" style={"width: #{@online_pct}%"}></div>
+          <div class="bg-success h-full rounded-full transition-all" style={"width: #{@online_pct}%"}>
+          </div>
         </div>
         <span class="text-sm font-mono w-16 text-right">{@online}/{@total}</span>
       </div>
       <div class="flex items-center gap-3">
         <span class="w-20 text-sm">Offline</span>
         <div class="flex-1 bg-base-300 rounded-full h-4 overflow-hidden">
-          <div class="bg-error h-full rounded-full transition-all" style={"width: #{@offline_pct}%"}></div>
+          <div class="bg-error h-full rounded-full transition-all" style={"width: #{@offline_pct}%"}>
+          </div>
         </div>
         <span class="text-sm font-mono w-16 text-right">{@offline}/{@total}</span>
       </div>
       <div :if={@unknown > 0} class="flex items-center gap-3">
         <span class="w-20 text-sm">Unknown</span>
         <div class="flex-1 bg-base-300 rounded-full h-4 overflow-hidden">
-          <div class="bg-base-content/30 h-full rounded-full transition-all" style={"width: #{Float.round(@unknown / @total * 100, 1)}%"}></div>
+          <div
+            class="bg-base-content/30 h-full rounded-full transition-all"
+            style={"width: #{Float.round(@unknown / @total * 100, 1)}%"}
+          >
+          </div>
         </div>
         <span class="text-sm font-mono w-16 text-right">{@unknown}/{@total}</span>
       </div>
@@ -209,8 +219,10 @@ defmodule SentinelCpWeb.DashboardLive.Index do
         drifted: drifted,
         active_events: active_events,
         resolved_today: resolved_today,
-        in_sync_pct: if(total_managed > 0, do: Float.round(in_sync / total_managed * 100, 1), else: 0),
-        drifted_pct: if(total_managed > 0, do: Float.round(drifted / total_managed * 100, 1), else: 0)
+        in_sync_pct:
+          if(total_managed > 0, do: Float.round(in_sync / total_managed * 100, 1), else: 0),
+        drifted_pct:
+          if(total_managed > 0, do: Float.round(drifted / total_managed * 100, 1), else: 0)
       )
 
     ~H"""
@@ -221,21 +233,25 @@ defmodule SentinelCpWeb.DashboardLive.Index do
       <div class="flex items-center gap-3">
         <span class="w-20 text-sm">In Sync</span>
         <div class="flex-1 bg-base-300 rounded-full h-4 overflow-hidden">
-          <div class="bg-success h-full rounded-full transition-all" style={"width: #{@in_sync_pct}%"}></div>
+          <div class="bg-success h-full rounded-full transition-all" style={"width: #{@in_sync_pct}%"}>
+          </div>
         </div>
         <span class="text-sm font-mono w-16 text-right">{@in_sync}/{@total_managed}</span>
       </div>
       <div class="flex items-center gap-3">
         <span class="w-20 text-sm">Drifted</span>
         <div class="flex-1 bg-base-300 rounded-full h-4 overflow-hidden">
-          <div class="bg-warning h-full rounded-full transition-all" style={"width: #{@drifted_pct}%"}></div>
+          <div class="bg-warning h-full rounded-full transition-all" style={"width: #{@drifted_pct}%"}>
+          </div>
         </div>
         <span class="text-sm font-mono w-16 text-right">{@drifted}/{@total_managed}</span>
       </div>
       <div class="divider my-2"></div>
       <div class="flex justify-between text-sm">
         <span class="text-base-content/70">Active drift events:</span>
-        <span class={["font-mono", @active_events > 0 && "text-warning font-bold"]}>{@active_events}</span>
+        <span class={["font-mono", @active_events > 0 && "text-warning font-bold"]}>
+          {@active_events}
+        </span>
       </div>
       <div class="flex justify-between text-sm">
         <span class="text-base-content/70">Resolved today:</span>

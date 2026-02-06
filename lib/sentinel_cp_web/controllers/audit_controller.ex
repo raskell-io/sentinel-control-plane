@@ -38,7 +38,16 @@ defmodule SentinelCpWeb.AuditController do
   defp maybe_add_filter(opts, key, value), do: [{key, value} | opts]
 
   defp logs_to_csv(logs) do
-    headers = ["timestamp", "action", "actor_type", "actor_id", "resource_type", "resource_id", "project_id"]
+    headers = [
+      "timestamp",
+      "action",
+      "actor_type",
+      "actor_id",
+      "resource_type",
+      "resource_id",
+      "project_id"
+    ]
+
     header_row = Enum.join(headers, ",")
 
     rows =

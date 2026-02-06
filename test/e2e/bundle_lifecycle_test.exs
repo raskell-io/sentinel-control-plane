@@ -57,10 +57,11 @@ defmodule SentinelCpWeb.E2E.BundleLifecycleTest do
     feature "view bundle details page", %{session: session} do
       {session, context} = setup_full_context(session)
 
-      bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
-        project: context.project,
-        version: "v3.0.0"
-      })
+      bundle =
+        SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+          project: context.project,
+          version: "v3.0.0"
+        })
 
       session
       |> visit("/projects/#{context.project.slug}/bundles/#{bundle.id}")
@@ -71,10 +72,11 @@ defmodule SentinelCpWeb.E2E.BundleLifecycleTest do
     feature "bundle details shows metadata", %{session: session} do
       {session, context} = setup_full_context(session)
 
-      bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
-        project: context.project,
-        version: "v4.0.0"
-      })
+      bundle =
+        SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+          project: context.project,
+          version: "v4.0.0"
+        })
 
       session
       |> visit("/projects/#{context.project.slug}/bundles/#{bundle.id}")
@@ -103,17 +105,19 @@ defmodule SentinelCpWeb.E2E.BundleLifecycleTest do
     feature "compare two bundles", %{session: session} do
       {session, context} = setup_full_context(session)
 
-      bundle1 = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
-        project: context.project,
-        version: "v5.0.0",
-        config_source: "system { workers 4 }"
-      })
+      bundle1 =
+        SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+          project: context.project,
+          version: "v5.0.0",
+          config_source: "system { workers 4 }"
+        })
 
-      bundle2 = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
-        project: context.project,
-        version: "v5.1.0",
-        config_source: "system { workers 8 }"
-      })
+      bundle2 =
+        SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+          project: context.project,
+          version: "v5.1.0",
+          config_source: "system { workers 8 }"
+        })
 
       session
       |> visit("/projects/#{context.project.slug}/bundles/diff?a=#{bundle1.id}&b=#{bundle2.id}")

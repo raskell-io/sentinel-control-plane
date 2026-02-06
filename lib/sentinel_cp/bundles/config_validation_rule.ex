@@ -51,7 +51,16 @@ defmodule SentinelCp.Bundles.ConfigValidationRule do
   """
   def create_changeset(rule, attrs) do
     rule
-    |> cast(attrs, [:name, :description, :rule_type, :pattern, :config, :severity, :enabled, :project_id])
+    |> cast(attrs, [
+      :name,
+      :description,
+      :rule_type,
+      :pattern,
+      :config,
+      :severity,
+      :enabled,
+      :project_id
+    ])
     |> validate_required([:name, :rule_type, :project_id])
     |> validate_length(:name, min: 1, max: 100)
     |> validate_inclusion(:rule_type, @rule_types)
@@ -94,6 +103,7 @@ defmodule SentinelCp.Bundles.ConfigValidationRule do
 
       "max_size" ->
         config = get_field(changeset, :config) || %{}
+
         if Map.has_key?(config, "max_bytes") do
           changeset
         else
@@ -102,6 +112,7 @@ defmodule SentinelCp.Bundles.ConfigValidationRule do
 
       "json_schema" ->
         config = get_field(changeset, :config) || %{}
+
         if Map.has_key?(config, "schema") do
           changeset
         else

@@ -115,10 +115,22 @@ defmodule SentinelCp.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "test.unit": ["ecto.create --quiet", "ecto.migrate --quiet", "test --exclude e2e --exclude integration"],
-      "test.integration": ["ecto.create --quiet", "ecto.migrate --quiet", "test --only integration"],
+      "test.unit": [
+        "ecto.create --quiet",
+        "ecto.migrate --quiet",
+        "test --exclude e2e --exclude integration"
+      ],
+      "test.integration": [
+        "ecto.create --quiet",
+        "ecto.migrate --quiet",
+        "test --only integration"
+      ],
       "test.e2e": ["ecto.create --quiet", "ecto.migrate --quiet", "test --only e2e"],
-      "test.all": ["ecto.create --quiet", "ecto.migrate --quiet", "test --include e2e --include integration"],
+      "test.all": [
+        "ecto.create --quiet",
+        "ecto.migrate --quiet",
+        "test --include e2e --include integration"
+      ],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind sentinel_cp", "esbuild sentinel_cp"],
       "assets.deploy": [

@@ -37,9 +37,7 @@ defmodule SentinelCp.Rollouts.SchedulerWorker do
             )
         end
       else
-        Logger.debug(
-          "SchedulerWorker: rollout #{rollout.id} scheduled but awaiting approval"
-        )
+        Logger.debug("SchedulerWorker: rollout #{rollout.id} scheduled but awaiting approval")
       end
     end
 

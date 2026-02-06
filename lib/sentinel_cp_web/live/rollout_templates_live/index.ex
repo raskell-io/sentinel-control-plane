@@ -51,8 +51,10 @@ defmodule SentinelCpWeb.RolloutTemplatesLive.Index do
       "batch_size" => to_string(template.batch_size),
       "max_unavailable" => to_string(template.max_unavailable),
       "progress_deadline_seconds" => to_string(template.progress_deadline_seconds),
-      "health_gates_heartbeat" => Map.get(template.health_gates || %{}, "heartbeat_healthy", false),
-      "health_gates_max_error_rate" => Map.get(template.health_gates || %{}, "max_error_rate", ""),
+      "health_gates_heartbeat" =>
+        Map.get(template.health_gates || %{}, "heartbeat_healthy", false),
+      "health_gates_max_error_rate" =>
+        Map.get(template.health_gates || %{}, "max_error_rate", ""),
       "health_gates_max_latency_ms" => Map.get(template.health_gates || %{}, "max_latency_ms", "")
     }
 
@@ -236,7 +238,10 @@ defmodule SentinelCpWeb.RolloutTemplatesLive.Index do
                 name="template[target_type]"
                 class="select select-bordered select-sm w-full max-w-xs"
               >
-                <option value="" selected={is_nil(@form[:target_type].value) or @form[:target_type].value == ""}>
+                <option
+                  value=""
+                  selected={is_nil(@form[:target_type].value) or @form[:target_type].value == ""}
+                >
                   No default target (select at rollout time)
                 </option>
                 <option value="all" selected={@form[:target_type].value == "all"}>All nodes</option>
@@ -526,15 +531,19 @@ defmodule SentinelCpWeb.RolloutTemplatesLive.Index do
   defp get_target_type(_), do: nil
 
   defp format_labels(nil), do: ""
+
   defp format_labels(%{"type" => "labels", "labels" => labels}) when is_map(labels) do
     labels |> Enum.map_join(", ", fn {k, v} -> "#{k}=#{v}" end)
   end
+
   defp format_labels(_), do: ""
 
   defp format_node_ids(nil), do: ""
+
   defp format_node_ids(%{"type" => "node_ids", "node_ids" => ids}) when is_list(ids) do
     Enum.join(ids, ", ")
   end
+
   defp format_node_ids(_), do: ""
 
   defp format_target(nil), do: "Not set"

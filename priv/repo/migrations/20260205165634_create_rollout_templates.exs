@@ -4,7 +4,10 @@ defmodule SentinelCp.Repo.Migrations.CreateRolloutTemplates do
   def change do
     create table(:rollout_templates, primary_key: false) do
       add :id, :binary_id, primary_key: true
-      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all),
+        null: false
+
       add :name, :string, null: false
       add :description, :string
       add :is_default, :boolean, null: false, default: false
@@ -26,8 +29,8 @@ defmodule SentinelCp.Repo.Migrations.CreateRolloutTemplates do
 
     # Only one default per project
     create unique_index(:rollout_templates, [:project_id],
-      where: "is_default = true",
-      name: :rollout_templates_one_default_per_project
-    )
+             where: "is_default = true",
+             name: :rollout_templates_one_default_per_project
+           )
   end
 end

@@ -45,10 +45,11 @@ defmodule SentinelCpWeb.E2E.RolloutWorkflowTest do
     feature "view rollout details with progress", %{session: session} do
       {session, context} = setup_full_context(session)
 
-      bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
-        project: context.project,
-        version: "rollout-v1"
-      })
+      bundle =
+        SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{
+          project: context.project,
+          version: "rollout-v1"
+        })
 
       # Create some nodes
       for i <- 1..3 do
@@ -58,10 +59,11 @@ defmodule SentinelCpWeb.E2E.RolloutWorkflowTest do
         })
       end
 
-      rollout = SentinelCp.RolloutsFixtures.rollout_fixture(%{
-        project: context.project,
-        bundle: bundle
-      })
+      rollout =
+        SentinelCp.RolloutsFixtures.rollout_fixture(%{
+          project: context.project,
+          bundle: bundle
+        })
 
       session
       |> visit("/projects/#{context.project.slug}/rollouts/#{rollout.id}")
@@ -78,11 +80,12 @@ defmodule SentinelCpWeb.E2E.RolloutWorkflowTest do
       SentinelCp.NodesFixtures.node_fixture(%{project: context.project, name: "step-node-1"})
       SentinelCp.NodesFixtures.node_fixture(%{project: context.project, name: "step-node-2"})
 
-      rollout = SentinelCp.RolloutsFixtures.rollout_fixture(%{
-        project: context.project,
-        bundle: bundle,
-        batch_size: 1
-      })
+      rollout =
+        SentinelCp.RolloutsFixtures.rollout_fixture(%{
+          project: context.project,
+          bundle: bundle,
+          batch_size: 1
+        })
 
       session
       |> visit("/projects/#{context.project.slug}/rollouts/#{rollout.id}")
@@ -95,10 +98,12 @@ defmodule SentinelCpWeb.E2E.RolloutWorkflowTest do
       {session, context} = setup_full_context(session)
 
       bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{project: context.project})
-      rollout = SentinelCp.RolloutsFixtures.rollout_fixture(%{
-        project: context.project,
-        bundle: bundle
-      })
+
+      rollout =
+        SentinelCp.RolloutsFixtures.rollout_fixture(%{
+          project: context.project,
+          bundle: bundle
+        })
 
       # Force to running state
       {:ok, _} = force_rollout_state(rollout, "running")
@@ -114,10 +119,12 @@ defmodule SentinelCpWeb.E2E.RolloutWorkflowTest do
       {session, context} = setup_full_context(session)
 
       bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{project: context.project})
-      rollout = SentinelCp.RolloutsFixtures.rollout_fixture(%{
-        project: context.project,
-        bundle: bundle
-      })
+
+      rollout =
+        SentinelCp.RolloutsFixtures.rollout_fixture(%{
+          project: context.project,
+          bundle: bundle
+        })
 
       # Force to paused state
       {:ok, _} = force_rollout_state(rollout, "paused")
@@ -133,10 +140,12 @@ defmodule SentinelCpWeb.E2E.RolloutWorkflowTest do
       {session, context} = setup_full_context(session)
 
       bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{project: context.project})
-      rollout = SentinelCp.RolloutsFixtures.rollout_fixture(%{
-        project: context.project,
-        bundle: bundle
-      })
+
+      rollout =
+        SentinelCp.RolloutsFixtures.rollout_fixture(%{
+          project: context.project,
+          bundle: bundle
+        })
 
       # Force to running state
       {:ok, _} = force_rollout_state(rollout, "running")
@@ -156,15 +165,18 @@ defmodule SentinelCpWeb.E2E.RolloutWorkflowTest do
       bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{project: context.project})
 
       # Create rollouts in different states
-      _pending = SentinelCp.RolloutsFixtures.rollout_fixture(%{
-        project: context.project,
-        bundle: bundle
-      })
+      _pending =
+        SentinelCp.RolloutsFixtures.rollout_fixture(%{
+          project: context.project,
+          bundle: bundle
+        })
 
-      running = SentinelCp.RolloutsFixtures.rollout_fixture(%{
-        project: context.project,
-        bundle: bundle
-      })
+      running =
+        SentinelCp.RolloutsFixtures.rollout_fixture(%{
+          project: context.project,
+          bundle: bundle
+        })
+
       {:ok, _} = force_rollout_state(running, "running")
 
       session

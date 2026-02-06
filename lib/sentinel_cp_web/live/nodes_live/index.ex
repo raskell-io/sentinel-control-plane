@@ -88,13 +88,25 @@ defmodule SentinelCpWeb.NodesLive.Index do
           project_id: project.id
         )
 
-        nodes = filter_nodes(project.id, socket.assigns.status_filter, socket.assigns.environment_filter)
+        nodes =
+          filter_nodes(
+            project.id,
+            socket.assigns.status_filter,
+            socket.assigns.environment_filter
+          )
+
         stats = Nodes.get_node_stats(project.id)
         drift_stats = Nodes.get_drift_stats(project.id)
 
         {:noreply,
          socket
-         |> assign(nodes: nodes, stats: stats, drift_stats: drift_stats, show_form: false, created_node_key: node.node_key)
+         |> assign(
+           nodes: nodes,
+           stats: stats,
+           drift_stats: drift_stats,
+           show_form: false,
+           created_node_key: node.node_key
+         )
          |> put_flash(:info, "Node registered.")}
 
       {:error, changeset} ->
@@ -115,14 +127,16 @@ defmodule SentinelCpWeb.NodesLive.Index do
     status = if status == "", do: nil, else: status
     query = build_filter_query(status, socket.assigns.environment_filter)
 
-    {:noreply, push_patch(socket, to: node_path(socket.assigns.org, socket.assigns.project, query))}
+    {:noreply,
+     push_patch(socket, to: node_path(socket.assigns.org, socket.assigns.project, query))}
   end
 
   def handle_event("filter_environment", %{"environment" => environment}, socket) do
     environment = if environment == "", do: nil, else: environment
     query = build_filter_query(socket.assigns.status_filter, environment)
 
-    {:noreply, push_patch(socket, to: node_path(socket.assigns.org, socket.assigns.project, query))}
+    {:noreply,
+     push_patch(socket, to: node_path(socket.assigns.org, socket.assigns.project, query))}
   end
 
   def handle_event("filter", params, socket) do
@@ -137,13 +151,24 @@ defmodule SentinelCpWeb.NodesLive.Index do
      )}
   end
 
-  def handle_event("assign_environment", %{"node-id" => node_id, "environment-id" => env_id}, socket) do
+  def handle_event(
+        "assign_environment",
+        %{"node-id" => node_id, "environment-id" => env_id},
+        socket
+      ) do
     env_id = if env_id == "", do: nil, else: env_id
 
     case Nodes.assign_node_to_environment(node_id, env_id) do
       {:ok, _node} ->
-        nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter, socket.assigns.environment_filter)
-        {:noreply, socket |> assign(:nodes, nodes) |> put_flash(:info, "Node environment updated.")}
+        nodes =
+          filter_nodes(
+            socket.assigns.project.id,
+            socket.assigns.status_filter,
+            socket.assigns.environment_filter
+          )
+
+        {:noreply,
+         socket |> assign(:nodes, nodes) |> put_flash(:info, "Node environment updated.")}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to update node environment.")}
@@ -155,7 +180,13 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
     case Nodes.delete_node(node) do
       {:ok, _} ->
-        nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter, socket.assigns.environment_filter)
+        nodes =
+          filter_nodes(
+            socket.assigns.project.id,
+            socket.assigns.status_filter,
+            socket.assigns.environment_filter
+          )
+
         {:noreply, socket |> assign(:nodes, nodes) |> put_flash(:info, "Node deleted")}
 
       {:error, _} ->
@@ -165,7 +196,13 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
   @impl true
   def handle_info(:refresh, socket) do
-    nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter, socket.assigns.environment_filter)
+    nodes =
+      filter_nodes(
+        socket.assigns.project.id,
+        socket.assigns.status_filter,
+        socket.assigns.environment_filter
+      )
+
     stats = Nodes.get_node_stats(socket.assigns.project.id)
     drift_stats = Nodes.get_drift_stats(socket.assigns.project.id)
     {:noreply, assign(socket, nodes: nodes, stats: stats, drift_stats: drift_stats)}
@@ -173,7 +210,13 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
   @impl true
   def handle_info({:node_updated, _node}, socket) do
-    nodes = filter_nodes(socket.assigns.project.id, socket.assigns.status_filter, socket.assigns.environment_filter)
+    nodes =
+      filter_nodes(
+        socket.assigns.project.id,
+        socket.assigns.status_filter,
+        socket.assigns.environment_filter
+      )
+
     stats = Nodes.get_node_stats(socket.assigns.project.id)
     drift_stats = Nodes.get_drift_stats(socket.assigns.project.id)
     {:noreply, assign(socket, nodes: nodes, stats: stats, drift_stats: drift_stats)}
@@ -183,11 +226,17 @@ defmodule SentinelCpWeb.NodesLive.Index do
     # Resolve environment slug to ID
     env_id = resolve_environment_id(socket.assigns.environments, environment_filter)
     nodes = filter_nodes(socket.assigns.project.id, status_filter, env_id)
-    assign(socket, nodes: nodes, status_filter: status_filter, environment_filter: environment_filter)
+
+    assign(socket,
+      nodes: nodes,
+      status_filter: status_filter,
+      environment_filter: environment_filter
+    )
   end
 
   defp resolve_environment_id(_environments, nil), do: nil
   defp resolve_environment_id(_environments, "unassigned"), do: :unassigned
+
   defp resolve_environment_id(environments, slug) do
     case Enum.find(environments, fn e -> e.slug == slug end) do
       nil -> nil
@@ -198,11 +247,13 @@ defmodule SentinelCpWeb.NodesLive.Index do
   defp filter_nodes(project_id, status, environment_id) do
     opts = []
     opts = if status, do: [{:status, status} | opts], else: opts
-    opts = case environment_id do
-      nil -> opts
-      :unassigned -> [{:environment_id, nil} | opts]
-      id -> [{:environment_id, id} | opts]
-    end
+
+    opts =
+      case environment_id do
+        nil -> opts
+        :unassigned -> [{:environment_id, nil} | opts]
+        id -> [{:environment_id, id} | opts]
+      end
 
     if opts == [] do
       Nodes.list_nodes(project_id)
@@ -234,9 +285,23 @@ defmodule SentinelCpWeb.NodesLive.Index do
 
       <.stat_strip>
         <:stat label="Total" value={to_string(Enum.count(@nodes))} color="info" testid="stats-total" />
-        <:stat label="Online" value={to_string(Map.get(@stats, "online", 0))} color="success" testid="stats-online" />
-        <:stat label="Offline" value={to_string(Map.get(@stats, "offline", 0))} color="error" testid="stats-offline" />
-        <:stat label="Unknown" value={to_string(Map.get(@stats, "unknown", 0))} testid="stats-unknown" />
+        <:stat
+          label="Online"
+          value={to_string(Map.get(@stats, "online", 0))}
+          color="success"
+          testid="stats-online"
+        />
+        <:stat
+          label="Offline"
+          value={to_string(Map.get(@stats, "offline", 0))}
+          color="error"
+          testid="stats-offline"
+        />
+        <:stat
+          label="Unknown"
+          value={to_string(Map.get(@stats, "unknown", 0))}
+          testid="stats-unknown"
+        />
         <:stat
           label="Drifted"
           value={to_string(@drift_stats.drifted)}
@@ -259,7 +324,9 @@ defmodule SentinelCpWeb.NodesLive.Index do
             <form :if={@environments != []} phx-change="filter_environment">
               <select name="environment" class="select select-bordered select-sm">
                 <option value="">All environments</option>
-                <option value="unassigned" selected={@environment_filter == "unassigned"}>Unassigned</option>
+                <option value="unassigned" selected={@environment_filter == "unassigned"}>
+                  Unassigned
+                </option>
                 <option
                   :for={env <- @environments}
                   value={env.slug}
@@ -292,35 +359,56 @@ defmodule SentinelCpWeb.NodesLive.Index do
                 placeholder="e.g. edge-node-01"
               />
               <label class="label">
-                <span class="label-text-alt text-base-content/50">Alphanumeric, underscore, dot, or hyphen</span>
+                <span class="label-text-alt text-base-content/50">
+                  Alphanumeric, underscore, dot, or hyphen
+                </span>
               </label>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div class="form-control">
                 <label class="label"><span class="label-text">Hostname</span></label>
-                <input type="text" name="hostname" class="input input-bordered input-sm w-full" placeholder="optional" />
+                <input
+                  type="text"
+                  name="hostname"
+                  class="input input-bordered input-sm w-full"
+                  placeholder="optional"
+                />
               </div>
               <div class="form-control">
                 <label class="label"><span class="label-text">IP Address</span></label>
-                <input type="text" name="ip" class="input input-bordered input-sm w-full" placeholder="optional" />
+                <input
+                  type="text"
+                  name="ip"
+                  class="input input-bordered input-sm w-full"
+                  placeholder="optional"
+                />
               </div>
               <div class="form-control">
                 <label class="label"><span class="label-text">Version</span></label>
-                <input type="text" name="version" class="input input-bordered input-sm w-full" placeholder="optional" />
+                <input
+                  type="text"
+                  name="version"
+                  class="input input-bordered input-sm w-full"
+                  placeholder="optional"
+                />
               </div>
             </div>
             <div class="form-control">
-              <label class="label"><span class="label-text">Labels (one key=value per line)</span></label>
+              <label class="label">
+                <span class="label-text">Labels (one key=value per line)</span>
+              </label>
               <textarea
                 name="labels"
                 rows="3"
                 class="textarea textarea-bordered textarea-sm font-mono text-sm w-full max-w-md"
-                placeholder={"env=production\nregion=us-east-1"}
+                placeholder="env=production\nregion=us-east-1"
               ></textarea>
             </div>
             <div class="flex gap-2">
               <button type="submit" class="btn btn-primary btn-sm">Register</button>
-              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_form">Cancel</button>
+              <button type="button" class="btn btn-ghost btn-sm" phx-click="toggle_form">
+                Cancel
+              </button>
             </div>
           </form>
         </.k8s_section>

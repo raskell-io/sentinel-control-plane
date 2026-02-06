@@ -145,7 +145,9 @@ defmodule SentinelCpWeb.Api.NodeController do
       {:error, :no_signing_key} ->
         conn
         |> put_status(:service_unavailable)
-        |> json(%{error: "No signing key configured for this organization. Contact your administrator."})
+        |> json(%{
+          error: "No signing key configured for this organization. Contact your administrator."
+        })
 
       {:error, :no_org} ->
         conn

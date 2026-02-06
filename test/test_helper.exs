@@ -8,10 +8,14 @@ if System.get_env("WALLABY_DRIVER") != "disabled" do
   # Check common chromedriver locations on macOS and Linux
   # Prefer homebrew/system installs which are more likely to match Chrome version
   chromedriver_paths = [
-    "/opt/homebrew/bin/chromedriver",  # Homebrew on Apple Silicon
-    "/usr/local/bin/chromedriver",     # Homebrew on Intel Mac / Linux
-    "/usr/bin/chromedriver",           # Linux system install
-    Path.expand("~/bin/chromedriver")  # User install (last resort)
+    # Homebrew on Apple Silicon
+    "/opt/homebrew/bin/chromedriver",
+    # Homebrew on Intel Mac / Linux
+    "/usr/local/bin/chromedriver",
+    # Linux system install
+    "/usr/bin/chromedriver",
+    # User install (last resort)
+    Path.expand("~/bin/chromedriver")
   ]
 
   chromedriver_found =

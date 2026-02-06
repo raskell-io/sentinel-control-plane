@@ -7,7 +7,7 @@ defmodule SentinelCp.Repo.Migrations.AddScheduledRollouts do
     end
 
     create index(:rollouts, [:scheduled_at],
-      where: "scheduled_at IS NOT NULL AND state = 'pending'"
-    )
+             where: "scheduled_at IS NOT NULL AND state = 'pending'"
+           )
   end
 end

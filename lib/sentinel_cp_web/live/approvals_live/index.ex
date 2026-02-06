@@ -76,7 +76,10 @@ defmodule SentinelCpWeb.ApprovalsLive.Index do
         {:noreply, put_flash(socket, :error, "You have already approved this rollout.")}
 
       {:error, :invalid_state} ->
-        {:noreply, socket |> put_flash(:error, "Rollout is no longer awaiting approval.") |> reload_pending()}
+        {:noreply,
+         socket
+         |> put_flash(:error, "Rollout is no longer awaiting approval.")
+         |> reload_pending()}
     end
   end
 
@@ -110,7 +113,10 @@ defmodule SentinelCpWeb.ApprovalsLive.Index do
         {:noreply, put_flash(socket, :error, "You don't have permission to reject rollouts.")}
 
       {:error, :invalid_state} ->
-        {:noreply, socket |> put_flash(:error, "Rollout is no longer awaiting approval.") |> reload_pending()}
+        {:noreply,
+         socket
+         |> put_flash(:error, "Rollout is no longer awaiting approval.")
+         |> reload_pending()}
     end
   end
 
@@ -152,8 +158,19 @@ defmodule SentinelCpWeb.ApprovalsLive.Index do
 
       <div :if={@pending_rollouts == []} class="text-center py-12 text-base-content/50">
         <div class="text-4xl mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-16 w-16 mx-auto opacity-50"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
         </div>
         <p class="text-lg">No rollouts pending approval</p>
@@ -263,8 +280,19 @@ defmodule SentinelCpWeb.ApprovalsLive.Index do
                   :for={approval <- item.approvals}
                   class="badge badge-success badge-sm gap-1"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-3 w-3"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                   {approval.user.email}
                 </span>

@@ -136,7 +136,8 @@ defmodule SentinelCpWeb.RolloutsLive.Show do
                  |> put_flash(:info, "Rollout approved and started.")}
 
               {:error, :no_target_nodes} ->
-                {:noreply, put_flash(socket, :error, "Rollout approved but no target nodes found.")}
+                {:noreply,
+                 put_flash(socket, :error, "Rollout approved but no target nodes found.")}
 
               {:error, reason} ->
                 {:noreply,

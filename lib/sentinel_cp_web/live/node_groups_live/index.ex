@@ -278,7 +278,9 @@ defmodule SentinelCpWeb.NodeGroupsLive.Index do
         <.k8s_section title={"Manage Members — #{@managing_members.name}"}>
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <h3 class="text-sm font-semibold mb-2">Current Members ({length(@managing_members.nodes)})</h3>
+              <h3 class="text-sm font-semibold mb-2">
+                Current Members ({length(@managing_members.nodes)})
+              </h3>
               <div class="space-y-1 max-h-64 overflow-y-auto">
                 <div
                   :for={node <- @managing_members.nodes}

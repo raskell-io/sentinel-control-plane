@@ -129,14 +129,18 @@ defmodule SentinelCpWeb.Integration.Api.BundleWorkflowTest do
 
   describe "bundle assignment" do
     test "assign bundle to nodes", %{conn: conn} do
-      {api_conn, context} = setup_api_context(conn, scopes: ["bundles:read", "bundles:write", "nodes:read"])
+      {api_conn, context} =
+        setup_api_context(conn, scopes: ["bundles:read", "bundles:write", "nodes:read"])
 
       # Create compiled bundle
       bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{project: context.project})
 
       # Register some nodes
-      node1 = SentinelCp.NodesFixtures.node_fixture(%{project: context.project, name: "assign-node-1"})
-      node2 = SentinelCp.NodesFixtures.node_fixture(%{project: context.project, name: "assign-node-2"})
+      node1 =
+        SentinelCp.NodesFixtures.node_fixture(%{project: context.project, name: "assign-node-1"})
+
+      node2 =
+        SentinelCp.NodesFixtures.node_fixture(%{project: context.project, name: "assign-node-2"})
 
       # Assign bundle
       assign_resp =

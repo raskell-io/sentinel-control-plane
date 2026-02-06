@@ -146,7 +146,8 @@ defmodule SentinelCpWeb.RolloutsLive.Index do
                 {:noreply, put_flash(socket, :error, "No target nodes matched the selector.")}
 
               {:error, reason} ->
-                {:noreply, put_flash(socket, :error, "Failed to plan rollout: #{inspect(reason)}")}
+                {:noreply,
+                 put_flash(socket, :error, "Failed to plan rollout: #{inspect(reason)}")}
             end
           else
             # Approval required

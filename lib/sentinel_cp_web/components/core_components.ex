@@ -521,7 +521,11 @@ defmodule SentinelCpWeb.CoreComponents do
   def detail_header(assigns) do
     ~H"""
     <div class="border-b border-base-300 pb-4 mb-6">
-      <.link :if={@back_path} navigate={@back_path} class="text-sm text-base-content/50 hover:text-base-content mb-2 inline-block">
+      <.link
+        :if={@back_path}
+        navigate={@back_path}
+        class="text-sm text-base-content/50 hover:text-base-content mb-2 inline-block"
+      >
         &larr; Back
       </.link>
       <div class="flex items-center justify-between gap-4">

@@ -116,7 +116,11 @@ defmodule SentinelCpWeb.BundlesLive.New do
   end
 
   @impl true
-  def handle_event("create_bundle", %{"version" => version, "config_source" => pasted_config}, socket) do
+  def handle_event(
+        "create_bundle",
+        %{"version" => version, "config_source" => pasted_config},
+        socket
+      ) do
     project = socket.assigns.project
     config = get_final_config(socket, pasted_config)
 
@@ -177,7 +181,7 @@ defmodule SentinelCpWeb.BundlesLive.New do
               type="button"
               phx-click="switch_mode"
               phx-value-mode="paste"
-              class={["btn btn-sm", @input_mode == "paste" && "btn-primary" || "btn-ghost"]}
+              class={["btn btn-sm", (@input_mode == "paste" && "btn-primary") || "btn-ghost"]}
             >
               Paste Config
             </button>
@@ -185,7 +189,7 @@ defmodule SentinelCpWeb.BundlesLive.New do
               type="button"
               phx-click="switch_mode"
               phx-value-mode="upload"
-              class={["btn btn-sm", @input_mode == "upload" && "btn-primary" || "btn-ghost"]}
+              class={["btn btn-sm", (@input_mode == "upload" && "btn-primary") || "btn-ghost"]}
             >
               Upload File
             </button>
@@ -201,7 +205,9 @@ defmodule SentinelCpWeb.BundlesLive.New do
 
           <div :if={@input_mode == "paste"} class="form-control">
             <div class="flex items-center justify-between">
-              <label class="label"><span class="label-text font-medium">KDL Configuration</span></label>
+              <label class="label">
+                <span class="label-text font-medium">KDL Configuration</span>
+              </label>
               <span class="text-xs text-base-content/50">
                 {@line_count} lines, {@char_count} chars
               </span>
@@ -231,7 +237,10 @@ defmodule SentinelCpWeb.BundlesLive.New do
 
           <div :if={@input_mode == "upload"} class="form-control">
             <label class="label"><span class="label-text font-medium">Upload .kdl File</span></label>
-            <.live_file_input upload={@uploads.config_file} class="file-input file-input-bordered file-input-sm w-full max-w-xs" />
+            <.live_file_input
+              upload={@uploads.config_file}
+              class="file-input file-input-bordered file-input-sm w-full max-w-xs"
+            />
             <input type="hidden" name="config_source" value="" />
             <%= for entry <- @uploads.config_file.entries do %>
               <div class="flex items-center gap-2 mt-2 text-sm">

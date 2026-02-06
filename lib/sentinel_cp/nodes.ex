@@ -506,6 +506,7 @@ defmodule SentinelCp.Nodes do
         case Rollouts.plan_rollout(rollout) do
           {:ok, _} ->
             require Logger
+
             Logger.info("Auto-remediation rollout started",
               rollout_id: rollout.id,
               node_id: node.id,
@@ -514,6 +515,7 @@ defmodule SentinelCp.Nodes do
 
           {:error, reason} ->
             require Logger
+
             Logger.warning("Auto-remediation rollout failed to plan",
               rollout_id: rollout.id,
               reason: inspect(reason)
@@ -522,6 +524,7 @@ defmodule SentinelCp.Nodes do
 
       {:error, reason} ->
         require Logger
+
         Logger.warning("Auto-remediation rollout creation failed",
           node_id: node.id,
           reason: inspect(reason)

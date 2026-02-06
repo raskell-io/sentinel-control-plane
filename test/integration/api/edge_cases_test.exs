@@ -44,7 +44,10 @@ defmodule SentinelCpWeb.Integration.Api.EdgeCasesTest do
       {api_conn, context} = setup_api_context(conn, scopes: ["nodes:read"])
 
       for i <- 1..10 do
-        SentinelCp.NodesFixtures.node_fixture(%{project: context.project, name: "limit-node-#{i}"})
+        SentinelCp.NodesFixtures.node_fixture(%{
+          project: context.project,
+          name: "limit-node-#{i}"
+        })
       end
 
       # Try limit parameter (API might use limit instead of per_page)
@@ -219,7 +222,8 @@ defmodule SentinelCpWeb.Integration.Api.EdgeCasesTest do
           name: "online-filter-node"
         })
 
-      {:ok, _} = SentinelCp.Nodes.record_heartbeat(online_node, %{health: %{"status" => "healthy"}})
+      {:ok, _} =
+        SentinelCp.Nodes.record_heartbeat(online_node, %{health: %{"status" => "healthy"}})
 
       SentinelCp.NodesFixtures.node_fixture(%{
         project: context.project,

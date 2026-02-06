@@ -15,7 +15,9 @@ defmodule SentinelCp.Repo.Migrations.AddCanaryNodeGroupsAndValidation do
       add :name, :string, null: false
       add :description, :string
       add :color, :string, default: "#6366f1"
-      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all),
+        null: false
 
       timestamps(type: :utc_datetime)
     end
@@ -26,7 +28,9 @@ defmodule SentinelCp.Repo.Migrations.AddCanaryNodeGroupsAndValidation do
     create table(:node_group_memberships, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :node_id, references(:nodes, type: :binary_id, on_delete: :delete_all), null: false
-      add :node_group_id, references(:node_groups, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :node_group_id, references(:node_groups, type: :binary_id, on_delete: :delete_all),
+        null: false
 
       timestamps(type: :utc_datetime)
     end
@@ -54,7 +58,9 @@ defmodule SentinelCp.Repo.Migrations.AddCanaryNodeGroupsAndValidation do
       add :expected_body_contains, :string
       add :headers, :map, default: %{}
       add :enabled, :boolean, default: true
-      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all),
+        null: false
 
       timestamps(type: :utc_datetime)
     end
@@ -71,7 +77,9 @@ defmodule SentinelCp.Repo.Migrations.AddCanaryNodeGroupsAndValidation do
       add :config, :map, default: %{}
       add :severity, :string, default: "error"
       add :enabled, :boolean, default: true
-      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all), null: false
+
+      add :project_id, references(:projects, type: :binary_id, on_delete: :delete_all),
+        null: false
 
       timestamps(type: :utc_datetime)
     end

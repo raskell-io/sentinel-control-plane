@@ -240,7 +240,9 @@ defmodule SentinelCpWeb.Integration.Auth.ErrorScenariosTest do
       {api_conn, context} = setup_api_context(conn, scopes: ["rollouts:read", "rollouts:write"])
 
       bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{project: context.project})
-      rollout = SentinelCp.RolloutsFixtures.rollout_fixture(%{project: context.project, bundle: bundle})
+
+      rollout =
+        SentinelCp.RolloutsFixtures.rollout_fixture(%{project: context.project, bundle: bundle})
 
       # Force to completed state
       {:ok, _} = force_rollout_state(rollout, "completed")
@@ -278,7 +280,9 @@ defmodule SentinelCpWeb.Integration.Auth.ErrorScenariosTest do
       {api_conn, context} = setup_api_context(conn, scopes: ["nodes:read", "nodes:write"])
 
       node = SentinelCp.NodesFixtures.node_fixture(%{project: context.project})
-      event = SentinelCp.NodesFixtures.drift_event_fixture(%{node: node, project: context.project})
+
+      event =
+        SentinelCp.NodesFixtures.drift_event_fixture(%{node: node, project: context.project})
 
       # Resolve the event
       {:ok, _} = SentinelCp.Nodes.resolve_drift_event(event, "manual")

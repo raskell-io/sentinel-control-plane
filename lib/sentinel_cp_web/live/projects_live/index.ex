@@ -59,13 +59,20 @@ defmodule SentinelCpWeb.ProjectsLive.Index do
          |> put_flash(:info, "Project created.")}
 
       {:error, changeset} ->
-        {:noreply, put_flash(socket, :error, "Could not create project: #{format_errors(changeset)}")}
+        {:noreply,
+         put_flash(socket, :error, "Could not create project: #{format_errors(changeset)}")}
     end
   end
 
   def handle_event("edit", %{"id" => id}, socket) do
     project = Projects.get_project!(id)
-    {:noreply, assign(socket, editing_id: project.id, edit_name: project.name, edit_description: project.description || "")}
+
+    {:noreply,
+     assign(socket,
+       editing_id: project.id,
+       edit_name: project.name,
+       edit_description: project.description || ""
+     )}
   end
 
   def handle_event("cancel_edit", _, socket) do
@@ -91,7 +98,8 @@ defmodule SentinelCpWeb.ProjectsLive.Index do
          |> put_flash(:info, "Project updated.")}
 
       {:error, changeset} ->
-        {:noreply, put_flash(socket, :error, "Could not update project: #{format_errors(changeset)}")}
+        {:noreply,
+         put_flash(socket, :error, "Could not update project: #{format_errors(changeset)}")}
     end
   end
 

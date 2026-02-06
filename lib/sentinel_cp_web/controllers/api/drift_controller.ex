@@ -223,12 +223,14 @@ defmodule SentinelCpWeb.Api.DriftController do
   defp maybe_add_status_filter(opts, _), do: [{:include_resolved, true} | opts]
 
   defp parse_int(nil, default), do: default
+
   defp parse_int(val, default) when is_binary(val) do
     case Integer.parse(val) do
       {n, _} -> n
       :error -> default
     end
   end
+
   defp parse_int(val, _default) when is_integer(val), do: val
 
   defp drift_event_to_json(event) do
@@ -314,6 +316,7 @@ defmodule SentinelCpWeb.Api.DriftController do
   end
 
   defp csv_escape(nil), do: ""
+
   defp csv_escape(val) when is_binary(val) do
     if String.contains?(val, [",", "\"", "\n"]) do
       "\"#{String.replace(val, "\"", "\"\"")}\""
@@ -321,16 +324,19 @@ defmodule SentinelCpWeb.Api.DriftController do
       val
     end
   end
+
   defp csv_escape(val), do: to_string(val)
 
   defp calculate_duration(%{detected_at: detected, resolved_at: resolved})
        when not is_nil(detected) and not is_nil(resolved) do
     DateTime.diff(resolved, detected)
   end
+
   defp calculate_duration(_), do: nil
 
   defp maybe_add_date_filter(opts, _key, nil), do: opts
   defp maybe_add_date_filter(opts, _key, ""), do: opts
+
   defp maybe_add_date_filter(opts, key, value) do
     case DateTime.from_iso8601(value) do
       {:ok, dt, _} -> [{key, dt} | opts]
@@ -346,25 +352,31 @@ defmodule SentinelCpWeb.Api.DriftController do
 
   defp filter_since(events, nil), do: events
   defp filter_since(events, ""), do: events
+
   defp filter_since(events, since) do
     case DateTime.from_iso8601(since) do
       {:ok, dt, _} ->
         Enum.filter(events, fn e ->
           DateTime.compare(e.detected_at, dt) in [:gt, :eq]
         end)
-      _ -> events
+
+      _ ->
+        events
     end
   end
 
   defp filter_until(events, nil), do: events
   defp filter_until(events, ""), do: events
+
   defp filter_until(events, until_dt) do
     case DateTime.from_iso8601(until_dt) do
       {:ok, dt, _} ->
         Enum.filter(events, fn e ->
           DateTime.compare(e.detected_at, dt) in [:lt, :eq]
         end)
-      _ -> events
+
+      _ ->
+        events
     end
   end
 

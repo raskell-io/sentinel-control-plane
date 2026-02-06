@@ -16,9 +16,14 @@ case SentinelCp.Accounts.register_user(%{
        password: "changeme123456",
        role: "admin"
      }) do
-  {:ok, user} -> IO.puts("Created admin user: #{user.email}")
-  {:error, %{errors: [email: {"has already been taken", _}]}} -> IO.puts("Admin user already exists")
-  {:error, changeset} -> IO.inspect(changeset.errors, label: "Failed to create admin user")
+  {:ok, user} ->
+    IO.puts("Created admin user: #{user.email}")
+
+  {:error, %{errors: [email: {"has already been taken", _}]}} ->
+    IO.puts("Admin user already exists")
+
+  {:error, changeset} ->
+    IO.inspect(changeset.errors, label: "Failed to create admin user")
 end
 
 # Dev org with admin as owner
@@ -26,8 +31,13 @@ admin = SentinelCp.Accounts.get_user_by_email("admin@localhost")
 
 if admin do
   case SentinelCp.Orgs.create_org_with_owner(%{name: "Default"}, admin) do
-    {:ok, org} -> IO.puts("Created org: #{org.name} (slug: #{org.slug})")
-    {:error, %{errors: [slug: {"has already been taken", _}]}} -> IO.puts("Default org already exists")
-    {:error, reason} -> IO.inspect(reason, label: "Failed to create org")
+    {:ok, org} ->
+      IO.puts("Created org: #{org.name} (slug: #{org.slug})")
+
+    {:error, %{errors: [slug: {"has already been taken", _}]}} ->
+      IO.puts("Default org already exists")
+
+    {:error, reason} ->
+      IO.inspect(reason, label: "Failed to create org")
   end
 end

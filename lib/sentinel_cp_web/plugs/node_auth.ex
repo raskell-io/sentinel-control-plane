@@ -54,7 +54,8 @@ defmodule SentinelCpWeb.Plugs.NodeAuth do
   end
 
   defp error_message(:missing_credentials),
-    do: "Missing authentication. Provide Authorization: Bearer <token> or X-Sentinel-Node-Key header."
+    do:
+      "Missing authentication. Provide Authorization: Bearer <token> or X-Sentinel-Node-Key header."
 
   defp error_message(:invalid_key), do: "Invalid node key"
   defp error_message(:invalid_signature), do: "Invalid token signature"
