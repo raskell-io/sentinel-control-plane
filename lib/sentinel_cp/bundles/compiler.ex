@@ -13,19 +13,24 @@ defmodule SentinelCp.Bundles.Compiler do
   Returns {:ok, output} or {:error, output}.
   """
   def validate(config_source) when is_binary(config_source) do
-    with {:ok, tmpfile} <- write_temp_config(config_source) do
-      try do
-        case System.cmd(sentinel_binary(), ["validate", "--config", tmpfile],
-               stderr_to_stdout: true
-             ) do
-          {output, 0} -> {:ok, output}
-          {output, _code} -> {:error, output}
+    if skip_validation?() do
+      Logger.info("Skipping sentinel validation (dev mode)")
+      {:ok, "Validation skipped (dev mode)"}
+    else
+      with {:ok, tmpfile} <- write_temp_config(config_source) do
+        try do
+          case System.cmd(sentinel_binary(), ["validate", "--config", tmpfile],
+                 stderr_to_stdout: true
+               ) do
+            {output, 0} -> {:ok, output}
+            {output, _code} -> {:error, output}
+          end
+        rescue
+          e in ErlangError ->
+            {:error, "Failed to run sentinel binary: #{inspect(e)}"}
+        after
+          File.rm(tmpfile)
         end
-      rescue
-        e in ErlangError ->
-          {:error, "Failed to run sentinel binary: #{inspect(e)}"}
-      after
-        File.rm(tmpfile)
       end
     end
   end
@@ -111,16 +116,20 @@ defmodule SentinelCp.Bundles.Compiler do
   end
 
   defp create_tar(dir, files) do
-    # Use Erlang's :erl_tar for portability
-    {:ok, tar_data} =
-      files
-      |> Enum.map(fn file ->
+    # Use Erlang's :erl_tar — write to temp file then read back
+    # (OTP 28 removed in-memory binary support from create/2)
+    tmptar = Path.join(System.tmp_dir!(), "bundle-tar-#{System.unique_integer([:positive])}.tar")
+
+    file_entries =
+      Enum.map(files, fn file ->
         path = Path.join(dir, file)
         content = File.read!(path)
         {String.to_charlist(file), content}
       end)
-      |> :erl_tar.create({:binary, []})
 
+    :ok = :erl_tar.create(String.to_charlist(tmptar), file_entries)
+    tar_data = File.read!(tmptar)
+    File.rm!(tmptar)
     tar_data
   end
 
@@ -143,7 +152,16 @@ defmodule SentinelCp.Bundles.Compiler do
   end
 
   defp sentinel_binary do
-    Application.get_env(:sentinel_cp, __MODULE__, [])
+    compiler_config()
     |> Keyword.get(:sentinel_binary, "sentinel")
+  end
+
+  defp skip_validation? do
+    compiler_config()
+    |> Keyword.get(:skip_validation, false)
+  end
+
+  defp compiler_config do
+    Application.get_env(:sentinel_cp, __MODULE__, [])
   end
 end

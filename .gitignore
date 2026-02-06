@@ -39,3 +39,6 @@ npm-debug.log
 *.db
 *.db-shm
 *.db-wal
+
+# Local bundle storage (dev)
+/priv/bundles/
