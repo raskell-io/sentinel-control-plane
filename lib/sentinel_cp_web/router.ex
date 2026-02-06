@@ -55,6 +55,14 @@ defmodule SentinelCpWeb.Router do
     plug SentinelCpWeb.Plugs.RequireScope, scope: "rollouts:write"
   end
 
+  pipeline :require_services_read do
+    plug SentinelCpWeb.Plugs.RequireScope, scope: "services:read"
+  end
+
+  pipeline :require_services_write do
+    plug SentinelCpWeb.Plugs.RequireScope, scope: "services:write"
+  end
+
   pipeline :require_api_keys_admin do
     plug SentinelCpWeb.Plugs.RequireScope, scope: "api_keys:admin"
   end
@@ -276,6 +284,30 @@ defmodule SentinelCpWeb.Router do
       post "/rollouts/:id/resume", RolloutController, :resume
       post "/rollouts/:id/cancel", RolloutController, :cancel
       post "/rollouts/:id/rollback", RolloutController, :rollback
+    end
+  end
+
+  # Control plane API — Services (read)
+  scope "/api/v1", SentinelCpWeb.Api do
+    pipe_through [:api, :api_auth, :require_services_read]
+
+    scope "/projects/:project_slug" do
+      get "/services/preview-kdl", ServiceController, :preview_kdl
+      get "/services", ServiceController, :index
+      get "/services/:id", ServiceController, :show
+    end
+  end
+
+  # Control plane API — Services (write)
+  scope "/api/v1", SentinelCpWeb.Api do
+    pipe_through [:api, :api_auth, :require_services_write]
+
+    scope "/projects/:project_slug" do
+      post "/services/generate-bundle", ServiceController, :generate_bundle
+      put "/services/reorder", ServiceController, :reorder
+      post "/services", ServiceController, :create
+      put "/services/:id", ServiceController, :update
+      delete "/services/:id", ServiceController, :delete
     end
   end
 
