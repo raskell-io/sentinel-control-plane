@@ -156,7 +156,7 @@ defmodule SentinelCpWeb.E2E.RolloutWorkflowTest do
       bundle = SentinelCp.RolloutsFixtures.compiled_bundle_fixture(%{project: context.project})
 
       # Create rollouts in different states
-      pending = SentinelCp.RolloutsFixtures.rollout_fixture(%{
+      _pending = SentinelCp.RolloutsFixtures.rollout_fixture(%{
         project: context.project,
         bundle: bundle
       })

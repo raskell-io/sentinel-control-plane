@@ -55,6 +55,11 @@ config :sentinel_cp, :github_client, SentinelCp.Webhooks.GitHubClient.Mock
 config :wallaby,
   otp_app: :sentinel_cp,
   driver: Wallaby.Chrome,
+  base_url: "http://localhost:4002",
   screenshot_on_failure: true,
   screenshot_dir: "tmp/screenshots",
-  max_wait_time: 5_000
+  max_wait_time: 5_000,
+  # Run in headless mode for CI environments
+  chrome: [
+    headless: System.get_env("CI") == "true"
+  ]

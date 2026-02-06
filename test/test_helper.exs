@@ -5,11 +5,35 @@ Mox.defmock(SentinelCp.Webhooks.GitHubClient.Mock,
 # Start Wallaby only if running E2E tests and ChromeDriver is available
 # E2E tests require ChromeDriver to be installed
 if System.get_env("WALLABY_DRIVER") != "disabled" do
-  case System.cmd("which", ["chromedriver"], stderr_to_stdout: true) do
-    {_, 0} ->
+  # Check common chromedriver locations on macOS and Linux
+  # Prefer homebrew/system installs which are more likely to match Chrome version
+  chromedriver_paths = [
+    "/opt/homebrew/bin/chromedriver",  # Homebrew on Apple Silicon
+    "/usr/local/bin/chromedriver",     # Homebrew on Intel Mac / Linux
+    "/usr/bin/chromedriver",           # Linux system install
+    Path.expand("~/bin/chromedriver")  # User install (last resort)
+  ]
+
+  chromedriver_found =
+    Enum.find(chromedriver_paths, fn path ->
+      File.exists?(path) && File.regular?(path)
+    end)
+
+  case chromedriver_found do
+    nil ->
+      # Try which as a fallback
+      case System.cmd("which", ["chromedriver"], stderr_to_stdout: true) do
+        {path, 0} when path != "" ->
+          {:ok, _} = Application.ensure_all_started(:wallaby)
+
+        _ ->
+          IO.puts("ChromeDriver not found - E2E tests will be skipped")
+      end
+
+    path ->
+      # Set chromedriver path for Wallaby (must be keyword list with :path key)
+      Application.put_env(:wallaby, :chromedriver, path: path)
       {:ok, _} = Application.ensure_all_started(:wallaby)
-    _ ->
-      IO.puts("ChromeDriver not found - E2E tests will be skipped")
   end
 end
 

@@ -45,7 +45,9 @@ defmodule SentinelCpWeb.FeatureCase do
   end
 
   setup tags do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(SentinelCp.Repo)
+    # Note: Do NOT call Ecto.Adapters.SQL.Sandbox.checkout here!
+    # Wallaby.Feature handles sandbox checkout automatically via checkout_ecto_repos/2.
+    # Calling it manually causes {:already, :owner} errors.
 
     unless tags[:async] do
       Ecto.Adapters.SQL.Sandbox.mode(SentinelCp.Repo, {:shared, self()})
@@ -69,7 +71,7 @@ defmodule SentinelCpWeb.FeatureCase do
     |> Wallaby.Browser.visit("/login")
     |> Wallaby.Browser.fill_in(text_field("Email"), with: email)
     |> Wallaby.Browser.fill_in(text_field("Password"), with: password)
-    |> Wallaby.Browser.click(button("Log in"))
+    |> Wallaby.Browser.click(button("Sign in"))
   end
 
   @doc """

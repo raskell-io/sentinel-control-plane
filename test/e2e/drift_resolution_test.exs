@@ -166,7 +166,7 @@ defmodule SentinelCpWeb.E2E.DriftResolutionTest do
 
       node = SentinelCp.NodesFixtures.node_fixture(%{project: context.project})
 
-      active_event = SentinelCp.NodesFixtures.drift_event_fixture(%{
+      _active_event = SentinelCp.NodesFixtures.drift_event_fixture(%{
         node: node,
         project: context.project
       })
