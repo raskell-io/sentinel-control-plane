@@ -2,6 +2,14 @@
 
 End-to-end guide for connecting existing zentinel proxy instances to the control plane.
 
+> **Integration status — read this first**
+>
+> The control-plane side of everything in this guide (registration, heartbeats, bundle distribution, JWT auth, events/metrics ingestion) is implemented and working. The [zentinel proxy](https://github.com/zentinelproxy/zentinel) itself, however, does **not yet ship a built-in control-plane client**: there are no `control_plane_url`, `node_id`, or `node_key` settings in the proxy configuration, and a stock proxy binary will not register, send heartbeats, or pull bundles on its own.
+>
+> Until native support lands in the proxy, the node-facing API described below has to be driven by an external process you run next to the proxy — a sidecar script, cron job, or your own tooling. The control plane's built-in node simulator speaks the same API, which is how the end-to-end workflow is exercised today. Section 2 describes what a minimal sidecar must do.
+>
+> See the [README status section](../README.md#status) for the overall project status.
+
 ## Prerequisites
 
 - Control plane running and accessible (see [DEPLOYMENT.md](DEPLOYMENT.md))
@@ -49,21 +57,34 @@ curl -X POST http://localhost:4000/api/v1/projects/my-project/nodes/register \
 
 **Important:** The `node_key` is returned only once. Store it securely — it cannot be retrieved again.
 
-## 2. Configure the Proxy
+## 2. Connect the Proxy (external sidecar required today)
 
-Configure the zentinel proxy to communicate with the control plane using the credentials from registration. Set these values in the proxy's configuration:
+The proxy has no native control-plane settings yet (see the status note at the top). The credentials from registration are consumed by whatever process you run alongside the proxy to speak the node API on its behalf:
 
-| Setting | Value |
-|---------|-------|
-| `control_plane_url` | URL of the control plane (e.g., `http://localhost:4000`) |
-| `node_id` | The `node_id` from the registration response |
-| `node_key` | The `node_key` from the registration response |
+| Value | Purpose |
+|-------|---------|
+| Control plane URL (e.g., `http://localhost:4000`) | Base URL for all node API calls |
+| `node_id` from the registration response | Identifies the node in every API path |
+| `node_key` from the registration response | Authenticates heartbeats, bundle polling, and event reporting |
 
-The proxy uses these to authenticate heartbeats, bundle polling, and event reporting.
+A minimal sidecar loop must:
+
+1. **Heartbeat** — `POST /api/v1/nodes/:node_id/heartbeat` every `poll_interval_s` seconds (see section 3 for the payload) so the node shows as "online".
+2. **Poll for bundles** — `GET /api/v1/nodes/:node_id/bundles/latest`; when a rollout assigns a new bundle, download it from the presigned URL, verify the checksum, unpack the KDL config, and reload the proxy with it.
+3. **Report back** — include the `active_bundle_id` in the next heartbeat so the rollout engine can track progress, and optionally report events and metrics (section 6).
+
+All calls authenticate with the `X-Zentinel-Node-Key` header (or a JWT, see section 4). Example heartbeat:
+
+```bash
+curl -X POST http://localhost:4000/api/v1/nodes/NODE_ID/heartbeat \
+  -H "X-Zentinel-Node-Key: sk_abc123def456..." \
+  -H "Content-Type: application/json" \
+  -d '{"version": "1.0.0"}'
+```
 
 ## 3. Verify Connection
 
-Once the proxy is configured and started, it will begin sending heartbeats to the control plane. Verify the connection:
+Once your sidecar (or other node-API client) is running and sending heartbeats, verify the connection:
 
 **Check via the dashboard:** Navigate to your project in the web UI — the node should appear with status "online".
 
