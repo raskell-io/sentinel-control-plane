@@ -41,6 +41,8 @@ Zentinel Control Plane is a fleet management system for [Zentinel](https://githu
 
 **Beta.** The core workflow (compile config → create bundle → roll out to nodes) works end-to-end. Multi-tenant support, audit logging, drift detection, approval workflows, and the full LiveView UI are implemented. Actively being hardened for production use.
 
+**One important caveat:** "end-to-end" means end-to-end *on the control-plane side*. The [zentinel proxy](https://github.com/zentinelproxy/zentinel) does not yet ship a built-in control-plane client — there are no `control_plane_url`, `node_id`, or `node_key` settings in its configuration, and a stock proxy will not register, heartbeat, or pull bundles on its own. Connecting real proxies today requires an external sidecar process that speaks the node API (the same API the built-in node simulator uses). See [PROXY-REGISTRATION.md](docs/PROXY-REGISTRATION.md) for what that involves.
+
 ## How It Works
 
 ```
